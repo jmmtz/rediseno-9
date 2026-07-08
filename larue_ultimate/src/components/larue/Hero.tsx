@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 
 const SLIDES = [
   '/images/0108ffd1-3140-48e8-994e-cd5cf422e400.JPG',
-  '/images/7f892cac-94d1-4023-9bc0-b4f5a951822e.JPG',
+  '/images/abd52b7c-de27-4c79-a38c-301c8e31d609.JPG',
   '/images/e3cacf9c-255d-45d6-8a06-c9241bb86726.JPG',
-  '/images/a3b9c8cd-1ba5-4b82-a08b-94d3b7ec92fe.JPG',
+  '/images/e5a71c0b-8cbc-47ff-8be2-3ecfd4560672.JPG',
   '/images/41745add-f988-4be9-aa1b-9fc96225b06e.JPG',
   '/images/ff725c1d-1c9b-49e4-8b93-0ed4ae470c95.JPG',
   '/images/cd827f77-4bbd-4eed-b9aa-32d31137263b.JPG',
