@@ -14,6 +14,59 @@ import CustomerDashboard from './components/auth/CustomerDashboard';
 
 type AppTab = 'larue' | 'admin';
 interface CustomerSession { id: string; email: string; name: string; }
+interface PendingBooking {
+  client_name: string;
+  client_phone: string;
+  service_name: string;
+  appointment_date: string;
+  appointment_time: string;
+  staff_name: string;
+  depositAmount: number;
+}
+
+// ── Stripe payment success modal ─────────────────────────────────────────────
+function StripeSuccessModal({ booking, onClose }: { booking: PendingBooking; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#FBFBF9] rounded-2xl w-full max-w-md shadow-2xl border border-gray-100 p-8 text-center">
+        <div className="w-20 h-20 rounded-full bg-[#FFFBE6] flex items-center justify-center mx-auto mb-5">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C9A000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </div>
+        <h2 className="text-gray-900 text-xl font-semibold mb-2">¡Pago Confirmado!</h2>
+        <p className="text-gray-500 text-sm mb-6">
+          Tu anticipo fue procesado exitosamente. Tu cita está reservada.
+        </p>
+        <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-4 text-left space-y-2 mb-6">
+          {[
+            ['Cliente', booking.client_name],
+            ['Servicio', booking.service_name],
+            ['Fecha', booking.appointment_date],
+            ['Hora', booking.appointment_time],
+            ['Especialista', booking.staff_name],
+            ['Anticipo pagado', `$${booking.depositAmount?.toLocaleString()} MXN`],
+          ].map(([label, value]) => (
+            <div key={label} className="flex justify-between text-sm">
+              <span className="text-gray-400">{label}</span>
+              <span className="text-gray-900 font-medium">{value}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-gray-400 text-xs mb-5">
+          Para cambios o cancelaciones contáctanos por WhatsApp al (871) 750-7681.
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full bg-black hover:bg-neutral-800 text-white font-semibold py-3.5 rounded-none transition-colors"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── Scroll reveal helper ─────────────────────────────────────────────────────
 function useScrollReveal() {
@@ -111,11 +164,42 @@ export default function App() {
   const [checkingAuth, setCheckingAuth]   = useState(true);
   const authResolved = useRef(false);
 
-  const [showBooking, setShowBooking]         = useState(false);
+  const [showBooking, setShowBooking]           = useState(false);
   const [preselectedService, setPreselectedService] = useState<Service | null>(null);
-  const [showAuthModal, setShowAuthModal]     = useState(false);
-  const [authModalView, setAuthModalView]     = useState<'login' | 'signup'>('login');
+  const [showAuthModal, setShowAuthModal]       = useState(false);
+  const [authModalView, setAuthModalView]       = useState<'login' | 'signup'>('login');
   const [showCustomerDash, setShowCustomerDash] = useState(false);
+  const [stripeBooking, setStripeBooking]       = useState<PendingBooking | null>(null);
+
+  // Handle Stripe return (success or cancel)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const appointmentId = params.get('appointment_id');
+    const cancelled = params.get('cancelled') === '1';
+
+    if (!appointmentId) return;
+
+    // Clean URL immediately
+    window.history.replaceState({}, '', window.location.pathname);
+
+    const raw = localStorage.getItem('larue_pending_booking');
+    localStorage.removeItem('larue_pending_booking');
+
+    if (cancelled) {
+      // Delete the pending appointment silently
+      supabase.from('appointments').delete().eq('id', appointmentId).eq('status', 'pendiente').then(() => {});
+    } else {
+      // Payment succeeded — show confirmation from saved booking data
+      if (raw) {
+        try {
+          setStripeBooking(JSON.parse(raw) as PendingBooking);
+        } catch {}
+      } else {
+        // Fallback: show a generic success message
+        setStripeBooking({ client_name: '', service_name: 'tu servicio', appointment_date: '', appointment_time: '', staff_name: '', depositAmount: 0 });
+      }
+    }
+  }, []);
 
   async function resolveUserRole(userId: string, email: string) {
     const { data: profile, error } = await supabase
@@ -188,7 +272,6 @@ export default function App() {
     setActiveTab('larue');
   }
 
-  // Loading spinner
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center">
@@ -197,7 +280,6 @@ export default function App() {
     );
   }
 
-  // Admin panel
   if (activeTab === 'admin' && isAdmin) {
     return <AdminDashboard onLogout={handleLogout} />;
   }
@@ -221,7 +303,6 @@ export default function App() {
       <CitasSection onBookClick={() => setShowBooking(true)} />
       <Footer />
 
-      {/* Admin FAB */}
       {isAdmin && (
         <div className="fixed bottom-6 right-6 z-40">
           <button
@@ -257,6 +338,13 @@ export default function App() {
           onClose={() => setShowCustomerDash(false)}
           onLogout={() => { setShowCustomerDash(false); handleLogout(); }}
           onBookNow={() => setShowBooking(true)}
+        />
+      )}
+
+      {stripeBooking && (
+        <StripeSuccessModal
+          booking={stripeBooking}
+          onClose={() => setStripeBooking(null)}
         />
       )}
     </div>

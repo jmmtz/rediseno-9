@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Clock, User, CreditCard, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { X, Clock, User, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Lock, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Service, Staff, Coupon, TrafficMode } from '../../types';
 
@@ -140,9 +140,6 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   const [couponError, setCouponError] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
 
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvc, setCardCvc] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState('');
 
@@ -234,11 +231,6 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   async function processPaymentAndBook() {
     setPaymentLoading(true);
     setPaymentError('');
-    if (requiresPayment && (!cardNumber || cardNumber.replace(/\s/g, '').length < 16)) {
-      setPaymentError('Número de tarjeta inválido. Use 4242 4242 4242 4242 para prueba.');
-      setPaymentLoading(false);
-      return;
-    }
 
     let assignedStaff = selectedStaff;
     if (anyProfessional) {
@@ -247,38 +239,81 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
       assignedStaff = auto;
     }
 
+    const staffName = anyProfessional
+      ? (assignedStaff ? `${assignedStaff.name} (auto)` : 'Cualquier Profesional')
+      : assignedStaff?.name || 'Cualquier Profesional';
+
+    const bookingBase = {
+      client_id: customerSession?.id || null,
+      client_name: clientName,
+      client_phone: clientPhone,
+      client_email: clientEmail,
+      service_id: selectedService?.id || null,
+      service_name: selectedService?.name || '',
+      staff_id: assignedStaff?.id || null,
+      staff_name: staffName,
+      appointment_date: selectedDate,
+      appointment_time: selectedTime,
+      coupon_code: appliedCoupon?.code || '',
+      coupon_discount: getCouponDiscount(),
+      notes,
+    };
+
+    if (!requiresPayment) {
+      // No anticipo — guardar cita directamente
+      try {
+        const { error } = await supabase.from('appointments').insert({
+          ...bookingBase,
+          status: 'confirmada',
+          payment_status: 'pendiente',
+          payment_amount: 0,
+          payment_intent_id: '',
+        });
+        if (error) throw error;
+        if (appliedCoupon) {
+          await supabase.from('coupons').update({ used_count: appliedCoupon.used_count + 1 }).eq('id', appliedCoupon.id);
+        }
+        saveClientInfo(clientName, clientPhone, clientEmail);
+        setStep('confirm');
+      } catch {
+        setPaymentError('Error al procesar. Intenta de nuevo.');
+      }
+      setPaymentLoading(false);
+      return;
+    }
+
+    // Anticipo requerido — redirigir a Stripe Checkout
+    saveClientInfo(clientName, clientPhone, clientEmail);
+    localStorage.setItem('larue_pending_booking', JSON.stringify({
+      ...bookingBase,
+      depositAmount,
+      serviceName: selectedService?.name,
+      formattedDate: selectedDate,
+      formattedTime: selectedTime,
+    }));
+
+    const baseUrl = window.location.origin + window.location.pathname;
+
     try {
-      const { error } = await supabase.from('appointments').insert({
-        client_id: customerSession?.id || null,
-        client_name: clientName,
-        client_phone: clientPhone,
-        client_email: clientEmail,
-        service_id: selectedService?.id || null,
-        service_name: selectedService?.name || '',
-        staff_id: assignedStaff?.id || null,
-        staff_name: anyProfessional
-          ? (assignedStaff ? `${assignedStaff.name} (auto)` : 'Cualquier Profesional')
-          : assignedStaff?.name || 'Cualquier Profesional',
-        appointment_date: selectedDate,
-        appointment_time: selectedTime,
-        status: 'confirmada',
-        payment_status: requiresPayment ? 'pagado' : 'pendiente',
-        payment_amount: depositAmount,
-        payment_intent_id: requiresPayment ? `sim_${Date.now()}` : '',
-        coupon_code: appliedCoupon?.code || '',
-        coupon_discount: getCouponDiscount(),
-        notes,
+      const { data, error } = await supabase.functions.invoke('salon-payment', {
+        body: {
+          amount_mxn: depositAmount,
+          description: `Anticipo — ${selectedService?.name || 'Servicio'} · La Rue Salon`,
+          success_url: baseUrl,
+          cancel_url: baseUrl,
+          booking: { ...bookingBase, payment_amount: depositAmount },
+        },
       });
       if (error) throw error;
-      if (appliedCoupon) {
-        await supabase.from('coupons').update({ used_count: appliedCoupon.used_count + 1 }).eq('id', appliedCoupon.id);
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error(data?.error || 'No se recibió URL de pago');
       }
-      saveClientInfo(clientName, clientPhone, clientEmail);
-      setStep('confirm');
-    } catch {
-      setPaymentError('Error al procesar. Intenta de nuevo.');
+    } catch (err: any) {
+      setPaymentError(err.message || 'Error al iniciar el pago. Intenta de nuevo.');
+      setPaymentLoading(false);
     }
-    setPaymentLoading(false);
   }
 
   function formatSelectedDate(iso: string) {
@@ -588,24 +623,20 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
                 )}
               </div>
 
-              {/* Card fields */}
+              {/* Stripe payment button or free confirm */}
               {requiresPayment && (
-                <div className="space-y-3">
-                  <p className="text-gray-500 text-xs flex items-center gap-1.5">
-                    <CreditCard size={13} className="text-[#C9A000]" />
-                    Pago con tarjeta (modo sandbox — use 4242 4242 4242 4242)
+                <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lock size={15} className="text-[#C9A000] mt-0.5 shrink-0" />
+                  <p className="text-gray-500 text-xs leading-relaxed">
+                    Serás redirigida a Stripe, la plataforma de pagos segura, para completar tu anticipo con tarjeta. Una vez confirmado el pago, tu cita queda reservada.
                   </p>
-                  <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4242 4242 4242 4242" maxLength={19} className={`${inputCls} font-mono`} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <input value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} placeholder="MM/AA" maxLength={5} className={inputCls} />
-                    <input value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} placeholder="CVC" maxLength={4} className={inputCls} />
-                  </div>
-                  {paymentError && (
-                    <p className="text-red-500 text-xs flex items-center gap-1">
-                      <AlertCircle size={12} /> {paymentError}
-                    </p>
-                  )}
                 </div>
+              )}
+
+              {paymentError && (
+                <p className="text-red-500 text-xs flex items-center gap-1">
+                  <AlertCircle size={12} /> {paymentError}
+                </p>
               )}
 
               <button
@@ -614,8 +645,10 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
                 className="w-full bg-black hover:bg-neutral-800 disabled:opacity-50 text-white font-semibold py-3.5 rounded-none transition-all flex items-center justify-center gap-2"
               >
                 {paymentLoading
-                  ? <><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> Procesando...</>
-                  : requiresPayment ? `Pagar $${depositAmount.toLocaleString()} y Confirmar` : 'Confirmar Cita (sin anticipo)'}
+                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {requiresPayment ? 'Redirigiendo a Stripe...' : 'Procesando...'}</>
+                  : requiresPayment
+                    ? <><ExternalLink size={16} /> Pagar ${depositAmount.toLocaleString()} MXN con Stripe</>
+                    : 'Confirmar Cita (sin anticipo)'}
               </button>
             </div>
           )}
