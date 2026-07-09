@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload } from 'lucide-react';
+import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload, Database } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Appointment, Staff, Service, Coupon, Promotion, TrafficMode } from '../../types';
 import AppointmentModal from './AppointmentModal';
 
-type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes';
+type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -50,6 +50,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   // Cancellation reason inputs per appointment row
   const [cancelReasons, setCancelReasons] = useState<Record<string, string>>({});
+
+  // Client DB state
+  const [clientSearch, setClientSearch] = useState('');
+  const [editingClientPhone, setEditingClientPhone] = useState<string | null>(null);
+  const [editClientData, setEditClientData] = useState<{ name: string; phone: string; email: string }>({ name: '', phone: '', email: '' });
 
   // New forms state
   const [newStaff, setNewStaff] = useState({ name: '', specialty: '', shift_start: '09:00', shift_end: '19:00', service_ids: [] as string[] });
@@ -265,6 +270,47 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     await supabase.from('appointments').delete().eq('id', id);
   }
 
+  // ─── Client aggregation ───────────────────────────────────────────────
+  interface ClientRecord {
+    phone: string;
+    name: string;
+    email: string;
+    visits: number;
+    cancellations: number;
+    noShows: number;
+    services: string[];
+    lastVisit: string;
+  }
+
+  const clientMap = new Map<string, ClientRecord>();
+  appointments.forEach((a) => {
+    const key = a.client_phone || a.client_name;
+    if (!clientMap.has(key)) {
+      clientMap.set(key, { phone: a.client_phone, name: a.client_name, email: a.client_email || '', visits: 0, cancellations: 0, noShows: 0, services: [], lastVisit: a.appointment_date });
+    }
+    const rec = clientMap.get(key)!;
+    if (a.appointment_date > rec.lastVisit) rec.lastVisit = a.appointment_date;
+    if (a.status === 'completada') rec.visits++;
+    else if (a.status === 'cancelada') rec.cancellations++;
+    else if (a.status === 'no_show') rec.noShows++;
+    if (a.service_name && !rec.services.includes(a.service_name)) rec.services.push(a.service_name);
+  });
+  const allClients = Array.from(clientMap.values()).sort((a, b) => b.lastVisit.localeCompare(a.lastVisit));
+  const filteredClients = allClients.filter((c) => {
+    const q = clientSearch.toLowerCase();
+    return !q || c.name.toLowerCase().includes(q) || c.phone.includes(q) || c.email.toLowerCase().includes(q);
+  });
+
+  async function saveClientEdits(originalPhone: string) {
+    const updates: Partial<{ client_name: string; client_phone: string; client_email: string }> = {};
+    if (editClientData.name) updates.client_name = editClientData.name;
+    if (editClientData.phone) updates.client_phone = editClientData.phone;
+    updates.client_email = editClientData.email;
+    await supabase.from('appointments').update(updates).eq('client_phone', originalPhone);
+    setEditingClientPhone(null);
+    loadData();
+  }
+
   // ─── Attendance quick-update ──────────────────────────────────────────
   async function markAttendance(apptId: string, arrived: boolean) {
     const status = arrived ? 'completada' : 'no_show';
@@ -286,6 +332,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { key: 'calendar', icon: <Calendar size={18} />, label: 'Calendario' },
     { key: 'stylist_view', icon: <Users size={18} />, label: 'Por Estilista' },
     { key: 'reportes', icon: <BarChart3 size={18} />, label: 'Reportes' },
+    { key: 'clients', icon: <Database size={18} />, label: 'Base de Datos' },
     { key: 'staff', icon: <Users size={18} />, label: 'Personal' },
     { key: 'services', icon: <TrendingUp size={18} />, label: 'Servicios' },
     { key: 'coupons', icon: <Tag size={18} />, label: 'Cupones' },
@@ -1143,30 +1190,92 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
 
-              <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 shadow-sm">
-                <p className="text-gray-900 font-semibold mb-2">Integración WhatsApp (Twilio)</p>
-                <p className="text-gray-500 text-sm mb-3">Configura las variables de entorno para activar mensajes automáticos.</p>
-                <div className="space-y-2 font-mono text-xs">
-                  {['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM'].map((v) => (
-                    <div key={v} className="bg-[#FBFBF9] border border-gray-100 rounded px-3 py-2 text-gray-500 flex items-center gap-2">
-                      <Clock size={12} className="text-[#C9A000]" />
-                      {v}=<span className="text-gray-300">••••••••</span>
-                    </div>
-                  ))}
-                </div>
+          {/* ===== CLIENTS / BASE DE DATOS ===== */}
+          {tab === 'clients' && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <input
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Buscar por nombre, teléfono o correo..."
+                  className="flex-1 bg-[#FBFBF9] border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-[#111111] focus:outline-none text-sm"
+                />
+                <p className="text-gray-400 text-sm shrink-0">{filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}</p>
               </div>
 
-              <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 shadow-sm">
-                <p className="text-gray-900 font-semibold mb-2">Integración Stripe</p>
-                <div className="space-y-2 font-mono text-xs">
-                  {['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'].map((v) => (
-                    <div key={v} className="bg-[#FBFBF9] border border-gray-100 rounded px-3 py-2 text-gray-500">
-                      {v}=<span className="text-gray-300">••••••••</span>
-                    </div>
-                  ))}
+              {filteredClients.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Database size={48} className="text-gray-200 mb-4" />
+                  <p className="text-gray-500">No hay clientes registrados aún</p>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredClients.map((c) => {
+                    const isEditing = editingClientPhone === c.phone;
+                    return (
+                      <div key={c.phone} className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-4 shadow-sm">
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <label className={labelCls}>Nombre</label>
+                                <input value={editClientData.name} onChange={(e) => setEditClientData({ ...editClientData, name: e.target.value })} className={inputCls} />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Teléfono</label>
+                                <input value={editClientData.phone} onChange={(e) => setEditClientData({ ...editClientData, phone: e.target.value })} className={inputCls} />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Correo</label>
+                                <input value={editClientData.email} onChange={(e) => setEditClientData({ ...editClientData, email: e.target.value })} className={inputCls} />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => saveClientEdits(c.phone)} className="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-1.5 rounded-none flex items-center gap-1.5"><Save size={13} /> Guardar</button>
+                              <button onClick={() => setEditingClientPhone(null)} className="bg-gray-100 text-gray-600 text-xs font-medium px-4 py-1.5 rounded-lg hover:bg-gray-200">Cancelar</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-4">
+                            <div className="w-10 h-10 rounded-full bg-[#FFFBE6] flex items-center justify-center text-[#C9A000] font-bold text-sm shrink-0">
+                              {c.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <p className="text-gray-900 font-medium text-sm">{c.name}</p>
+                                <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-medium">{c.visits} visita{c.visits !== 1 ? 's' : ''}</span>
+                                {c.cancellations > 0 && <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">{c.cancellations} cancel.</span>}
+                                {c.noShows > 0 && <span className="text-[10px] bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">{c.noShows} no-show</span>}
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400">
+                                {c.phone && <span>{c.phone}</span>}
+                                {c.email && <span>{c.email}</span>}
+                                {c.lastVisit && <span>Última visita: {c.lastVisit}</span>}
+                              </div>
+                              {c.services.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {c.services.map((svc) => (
+                                    <span key={svc} className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{svc}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => { setEditingClientPhone(c.phone); setEditClientData({ name: c.name, phone: c.phone, email: c.email }); }}
+                              className="text-gray-400 hover:text-[#C9A000] transition-colors p-1.5 rounded-lg hover:bg-[#FFFBE6] shrink-0"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

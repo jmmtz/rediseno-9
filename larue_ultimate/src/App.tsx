@@ -8,7 +8,6 @@ import Services from './components/larue/Services';
 import Gallery from './components/larue/Gallery';
 import Footer from './components/larue/Footer';
 import BookingWizard from './components/larue/BookingWizard';
-import ValmSection from './components/valm/ValmSection';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AuthModal from './components/auth/AuthModal';
 import CustomerDashboard from './components/auth/CustomerDashboard';
@@ -220,7 +219,6 @@ export default function App() {
       <Services onBookService={handleBookService} />
       <Gallery />
       <CitasSection onBookClick={() => setShowBooking(true)} />
-      <ValmSection />
       <Footer />
 
       {/* Admin FAB */}

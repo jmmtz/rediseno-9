@@ -1,4 +1,4 @@
-import { Instagram, Phone, MapPin, Clock, Mail } from 'lucide-react';
+import { Instagram, Phone, MapPin, Clock } from 'lucide-react';
 
 export default function Footer() {
   const scrollTo = (id: string) => {
@@ -17,15 +17,11 @@ export default function Footer() {
               Un refugio de belleza y bienestar donde cada detalle está pensado para ofrecerte una experiencia sin igual. Lujo silencioso, cuidado genuino.
             </p>
             <div className="flex items-center gap-5 mt-8">
-              <a href="https://instagram.com/larue.salonyspa" target="_blank" rel="noreferrer"
+              <a href="https://instagram.com/la.rue.salon" target="_blank" rel="noreferrer"
                 className="text-[#FAF9F6]/45 hover:text-[#C9A96E] transition-colors duration-300">
                 <Instagram size={18} />
               </a>
-              <a href="mailto:contacto@larue.mx"
-                className="text-[#FAF9F6]/45 hover:text-[#C9A96E] transition-colors duration-300">
-                <Mail size={18} />
-              </a>
-              <a href="tel:+528710000000"
+              <a href="tel:+528717507681"
                 className="text-[#FAF9F6]/45 hover:text-[#C9A96E] transition-colors duration-300">
                 <Phone size={18} />
               </a>
@@ -57,12 +53,12 @@ export default function Footer() {
               </li>
               <li className="flex items-start gap-3">
                 <MapPin size={13} className="text-[#C9A96E] mt-0.5 shrink-0" />
-                <span>Torreón, Coahuila, México</span>
+                <span>Blvd. Independencia 3817-Loc 1<br />Residencial el Fresno<br />27018 Torreón, Coah.</span>
               </li>
               <li className="flex items-start gap-3">
                 <Phone size={13} className="text-[#C9A96E] mt-0.5 shrink-0" />
-                <a href="tel:+528710000000" className="hover:text-[#C9A96E] transition-colors duration-300">
-                  (871) 000-0000
+                <a href="tel:+528717507681" className="hover:text-[#C9A96E] transition-colors duration-300">
+                  (871) 750-7681
                 </a>
               </li>
             </ul>
