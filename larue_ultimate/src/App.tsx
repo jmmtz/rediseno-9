@@ -85,38 +85,76 @@ function useScrollReveal() {
   return { ref, visible };
 }
 
-// ── Stats strip ──────────────────────────────────────────────────────────────
-const STATS = [
-  { value: '10+', label: 'Años de Experiencia' },
-  { value: '5,000+', label: 'Clientas Satisfechas' },
-  { value: '20+', label: 'Técnicas Especializadas' },
-  { value: '8', label: 'Premios de Industria' },
+// ── Google Reviews section ────────────────────────────────────────────────────
+const REVIEWS = [
+  { name: 'Cristina', rating: 5, text: 'Tengo más de 15 años yendo a LaRue para maquillaje y peinado. Siempre salgo feliz. Excelente servicio y maquillaje y peinado de calidad. 100% lo recomiendo a cualquier persona.', time: 'hace un año' },
+  { name: 'Ricardo Tapia-Iturriaga', rating: 5, text: 'Personal amable, atento y cordial. Estuve de visita en la ciudad y no sabía dónde cortarme el pelo, así que hice cita por Instagram y amablemente me recibieron — quedé muy satisfecho con el resultado. Excelente servicio.', time: 'hace 5 años' },
+  { name: 'Sofia Flores Subealdea', rating: 5, text: 'Excelente servicio. Sarai, la dueña, siempre está a la vanguardia de maquillaje, tinte, corte dama y caballero. They speak English ;)', time: 'hace 6 años' },
+  { name: 'Andrea Sat', rating: 5, text: 'Excelente el corte de cabello y tratamiento Muccota.', time: 'hace 5 años' },
+  { name: 'Manuel Blanco', rating: 5, text: 'Muy atentas y serviciales.', time: 'hace 6 años' },
+  { name: 'Felipe Juan Ramos', rating: 5, text: 'Excelente servicio.', time: 'hace 8 años' },
 ];
 
-function StatsStrip() {
+function StarIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+    </svg>
+  );
+}
+
+function ReviewsSection() {
   const { ref, visible } = useScrollReveal();
   return (
-    <section className="py-16 border-y border-[#1a1a1a]/8 bg-[#FAF9F6]">
+    <section className="py-24 lg:py-36 bg-[#FAF9F6]">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div
           ref={ref}
-          className="flex flex-col md:flex-row items-center justify-between gap-10"
           style={{
             opacity: visible ? 1 : 0,
             transform: visible ? 'translateY(0)' : 'translateY(20px)',
             transition: 'opacity 0.8s ease-out, transform 0.8s ease-out',
           }}
         >
-          {STATS.map(({ value, label }, i) => (
-            <div
-              key={label}
-              className="text-center flex-1"
-              style={{ transitionDelay: `${i * 80}ms` }}
-            >
-              <p className="font-cormorant text-4xl lg:text-5xl font-light text-[#1a1a1a] mb-2">{value}</p>
-              <p className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium">{label}</p>
+          <div className="mb-14 flex flex-col md:flex-row md:items-end gap-6">
+            <div>
+              <p className="text-xs tracking-[0.35em] uppercase text-[#8B7355] font-medium mb-4">Lo que dicen de nosotros</p>
+              <h2 className="font-cormorant text-4xl lg:text-6xl font-light text-[#1a1a1a] leading-tight">
+                4.6 en Google<br /><em className="text-[#8B7355]">· 620 opiniones</em>
+              </h2>
             </div>
-          ))}
+            <div className="flex gap-0.5 md:mb-2">
+              {[...Array(5)].map((_, i) => <StarIcon key={i} />)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {REVIEWS.map((r, i) => (
+              <div
+                key={r.name}
+                className="bg-white border border-[#1a1a1a]/6 rounded-2xl p-6 flex flex-col gap-4"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(16px)',
+                  transition: `opacity 0.7s ease-out ${i * 70}ms, transform 0.7s ease-out ${i * 70}ms`,
+                }}
+              >
+                <div className="flex gap-0.5">
+                  {[...Array(r.rating)].map((_, j) => <StarIcon key={j} />)}
+                </div>
+                <p className="text-[#3a3a3a] text-sm leading-relaxed font-light flex-1">"{r.text}"</p>
+                <div className="flex items-center gap-3 pt-2 border-t border-[#1a1a1a]/6">
+                  <div className="w-8 h-8 rounded-full bg-[#FFFBE6] flex items-center justify-center text-[#C9A000] font-bold text-xs shrink-0">
+                    {r.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-gray-900 text-xs font-semibold">{r.name}</p>
+                    <p className="text-gray-400 text-xs">{r.time}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -297,7 +335,7 @@ export default function App() {
       />
 
       <Hero onBookClick={() => setShowBooking(true)} />
-      <StatsStrip />
+      <ReviewsSection />
       <Services onBookService={handleBookService} />
       <Gallery />
       <CitasSection onBookClick={() => setShowBooking(true)} />

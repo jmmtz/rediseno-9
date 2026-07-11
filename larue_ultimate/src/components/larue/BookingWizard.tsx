@@ -128,6 +128,8 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [anyProfessional, setAnyProfessional] = useState(false);
   const [autoAssignedStaff, setAutoAssignedStaff] = useState<Staff | null>(null);
+  const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
+  const [bookedStaffBySlot, setBookedStaffBySlot] = useState<Record<string, string[]>>({});
 
   const saved = loadSavedClient();
   const [clientName, setClientName] = useState(customerSession?.name || saved?.name || '');
@@ -154,6 +156,34 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
     });
   }, []);
 
+  // Fetch booked slots for selected date to block unavailable times
+  useEffect(() => {
+    if (!selectedDate || staff.length === 0) return;
+    supabase
+      .from('appointments')
+      .select('appointment_time, staff_id')
+      .eq('appointment_date', selectedDate)
+      .not('status', 'in', '("cancelada")')
+      .then(({ data }) => {
+        const bySlot: Record<string, string[]> = {};
+        data?.forEach((a) => {
+          const t = a.appointment_time?.slice(0, 5);
+          if (!t) return;
+          if (!bySlot[t]) bySlot[t] = [];
+          if (a.staff_id) bySlot[t].push(a.staff_id);
+        });
+        // A slot is fully blocked only when every active staff member has a booking there
+        const activeCount = staff.length;
+        const blocked = new Set(
+          Object.entries(bySlot)
+            .filter(([, ids]) => ids.length >= activeCount)
+            .map(([t]) => t)
+        );
+        setBookedSlots(blocked);
+        setBookedStaffBySlot(bySlot);
+      });
+  }, [selectedDate, staff]);
+
   // Filter staff to those who have the selected service in their service_ids
   const eligibleStaff = selectedService
     ? staff.filter((s) => {
@@ -161,6 +191,23 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
         return ids.length === 0 || ids.includes(selectedService.id);
       })
     : staff;
+
+  // For the stylist step, exclude staff already booked at selected time+date
+  const availableStaff = selectedTime
+    ? eligibleStaff.filter((s) => !(bookedStaffBySlot[selectedTime] ?? []).includes(s.id))
+    : eligibleStaff;
+
+  // Compute which time slots are available for the selected date
+  const todayISO = new Date().toISOString().split('T')[0];
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const availableTimeSlots = TIME_SLOTS.filter((t) => {
+    if (bookedSlots.has(t)) return false;
+    if (selectedDate === todayISO) {
+      const [h, m] = t.split(':').map(Number);
+      if (h * 60 + m <= nowMinutes) return false;
+    }
+    return true;
+  });
 
   const servicePrice = selectedService ? selectedService.price_min : 0;
   const effectiveTraffic: TrafficMode = appliedCoupon?.requires_full_payment ? 'high' : trafficMode;
@@ -385,22 +432,28 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
                   <p className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                     <Clock size={14} className="text-[#C9A000]" /> Selecciona un horario
                   </p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {TIME_SLOTS.map((time) => (
-                      <button
-                        key={time}
-                        type="button"
-                        onClick={() => setSelectedTime(time)}
-                        className={`py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                          selectedTime === time
-                            ? 'bg-[#111111] text-white shadow-sm font-bold'
-                            : 'bg-[#FBFBF9] border border-gray-200 text-gray-600 hover:border-[#111111] hover:bg-[#FFFBE6]'
-                        }`}
-                      >
-                        {time}
-                      </button>
-                    ))}
-                  </div>
+                  {availableTimeSlots.length === 0 ? (
+                    <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+                      No hay horarios disponibles para esta fecha. Por favor selecciona otro día.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableTimeSlots.map((time) => (
+                        <button
+                          key={time}
+                          type="button"
+                          onClick={() => setSelectedTime(time)}
+                          className={`py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                            selectedTime === time
+                              ? 'bg-[#111111] text-white shadow-sm font-bold'
+                              : 'bg-[#FBFBF9] border border-gray-200 text-gray-600 hover:border-[#111111] hover:bg-[#FFFBE6]'
+                          }`}
+                        >
+                          {time}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               <button
@@ -453,9 +506,9 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
           {step === 'stylist' && (
             <div className="space-y-3">
               <p className="text-gray-500 text-sm">Elige a tu profesional</p>
-              {eligibleStaff.length === 0 && (
+              {availableStaff.length === 0 && (
                 <p className="text-amber-600 text-xs bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                  No hay especialistas asignadas a este servicio aún. Se asignará automáticamente.
+                  No hay especialistas disponibles en ese horario. Por favor selecciona otra hora o fecha.
                 </p>
               )}
               {/* Auto-assign option */}
@@ -469,14 +522,11 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
                   <div className="w-9 h-9 rounded-full bg-[#111111]/20 flex items-center justify-center">
                     <User size={16} className="text-[#C9A000]" />
                   </div>
-                  <div>
-                    <p className="text-gray-900 font-medium text-sm">Cualquiera (Asignación Automática)</p>
-                    <p className="text-gray-400 text-xs">La especialista con menos citas ese día</p>
-                  </div>
+                  <p className="text-gray-900 font-medium text-sm">Cualquiera (Asignación Automática)</p>
                 </div>
               </button>
 
-              {eligibleStaff.map((s) => (
+              {availableStaff.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => { setSelectedStaff(s); setAnyProfessional(false); }}

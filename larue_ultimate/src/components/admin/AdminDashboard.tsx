@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload, Database } from 'lucide-react';
+import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload, Database, Image } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Appointment, Staff, Service, Coupon, Promotion, TrafficMode } from '../../types';
 import AppointmentModal from './AppointmentModal';
 
-type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients';
+type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -65,6 +65,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatarFor, setUploadingAvatarFor] = useState<string | null>(null);
 
+  // Gallery state
+  interface GalleryPhoto { id: string; url: string; display_order: number; is_active: boolean; }
+  const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
+  const [newPhotoUrl, setNewPhotoUrl] = useState('');
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+
+  // Manual appointment state
+  const [showNewAppt, setShowNewAppt] = useState(false);
+  const [newAppt, setNewAppt] = useState({
+    client_name: '', client_phone: '', client_email: '',
+    service_id: '', staff_id: '', appointment_date: '', appointment_time: '09:00', notes: '',
+  });
+
   const loadData = useCallback(async () => {
     setLoading(true);
     const errors: string[] = [];
@@ -112,6 +126,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
     setSchemaErrors(errors);
     setLoading(false);
+
+    // Load gallery photos
+    const { data: gData } = await supabase.from('gallery_photos').select('*').order('display_order', { ascending: true });
+    if (gData) setGalleryPhotos(gData);
   }, []);
 
   const autoComplete = useCallback(async () => {
@@ -215,6 +233,77 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   async function deleteStaff(id: string) {
     setStaff((prev) => prev.filter((s) => s.id !== id));
     await supabase.from('staff').delete().eq('id', id);
+  }
+
+  // ─── Gallery CRUD ──────────────────────────────────────────────────────
+  async function addGalleryByUrl() {
+    if (!newPhotoUrl.trim()) return;
+    const maxOrder = galleryPhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
+    const { data } = await supabase.from('gallery_photos').insert({ url: newPhotoUrl.trim(), display_order: maxOrder + 1, is_active: true }).select().single();
+    if (data) setGalleryPhotos((prev) => [...prev, data]);
+    setNewPhotoUrl('');
+  }
+
+  async function handleGalleryUpload(file: File) {
+    setUploadingGallery(true);
+    const path = `gallery/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from('gallery').upload(path, file, { upsert: true });
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(path);
+      const maxOrder = galleryPhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
+      const { data: newPhoto } = await supabase.from('gallery_photos').insert({ url: urlData.publicUrl, display_order: maxOrder + 1, is_active: true }).select().single();
+      if (newPhoto) setGalleryPhotos((prev) => [...prev, newPhoto]);
+    }
+    setUploadingGallery(false);
+  }
+
+  async function toggleGalleryPhoto(photo: GalleryPhoto) {
+    await supabase.from('gallery_photos').update({ is_active: !photo.is_active }).eq('id', photo.id);
+    setGalleryPhotos((prev) => prev.map((p) => p.id === photo.id ? { ...p, is_active: !p.is_active } : p));
+  }
+
+  async function deleteGalleryPhoto(id: string) {
+    await supabase.from('gallery_photos').delete().eq('id', id);
+    setGalleryPhotos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function moveGalleryPhoto(id: string, direction: 'up' | 'down') {
+    const idx = galleryPhotos.findIndex((p) => p.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= galleryPhotos.length) return;
+    const updated = [...galleryPhotos];
+    const tmpOrder = updated[idx].display_order;
+    updated[idx] = { ...updated[idx], display_order: updated[swapIdx].display_order };
+    updated[swapIdx] = { ...updated[swapIdx], display_order: tmpOrder };
+    [updated[idx], updated[swapIdx]] = [updated[swapIdx], updated[idx]];
+    setGalleryPhotos(updated);
+    await supabase.from('gallery_photos').update({ display_order: updated[idx].display_order }).eq('id', updated[idx].id);
+    await supabase.from('gallery_photos').update({ display_order: updated[swapIdx].display_order }).eq('id', updated[swapIdx].id);
+  }
+
+  // ─── Manual Appointment ────────────────────────────────────────────────
+  async function createManualAppointment() {
+    if (!newAppt.client_name || !newAppt.appointment_date || !newAppt.appointment_time) return;
+    const svc = services.find((s) => s.id === newAppt.service_id);
+    const stf = staff.find((s) => s.id === newAppt.staff_id);
+    await supabase.from('appointments').insert({
+      client_name: newAppt.client_name,
+      client_phone: newAppt.client_phone,
+      client_email: newAppt.client_email,
+      service_id: newAppt.service_id || null,
+      service_name: svc?.name || '',
+      staff_id: newAppt.staff_id || null,
+      staff_name: stf?.name || 'Sin asignar',
+      appointment_date: newAppt.appointment_date,
+      appointment_time: newAppt.appointment_time,
+      status: 'confirmada',
+      payment_status: 'pendiente',
+      payment_amount: 0,
+      notes: newAppt.notes,
+    });
+    setNewAppt({ client_name: '', client_phone: '', client_email: '', service_id: '', staff_id: '', appointment_date: selectedDate, appointment_time: '09:00', notes: '' });
+    setShowNewAppt(false);
+    loadData();
   }
 
   // ─── Coupons CRUD ─────────────────────────────────────────────────────
@@ -335,6 +424,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { key: 'clients', icon: <Database size={18} />, label: 'Base de Datos' },
     { key: 'staff', icon: <Users size={18} />, label: 'Personal' },
     { key: 'services', icon: <TrendingUp size={18} />, label: 'Servicios' },
+    { key: 'gallery', icon: <Image size={18} />, label: 'Galería' },
     { key: 'coupons', icon: <Tag size={18} />, label: 'Cupones' },
     { key: 'promos', icon: <TrendingUp size={18} />, label: 'Promos' },
     { key: 'settings', icon: <Settings size={18} />, label: 'Configuración' },
@@ -439,7 +529,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {/* ===== CALENDAR VIEW ===== */}
           {tab === 'calendar' && (
             <div className="space-y-5">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <input
                   type="date"
                   value={selectedDate}
@@ -447,7 +537,64 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   className="bg-[#FBFBF9] border border-gray-200 rounded-lg px-4 py-2 text-gray-900 text-sm focus:border-[#111111] focus:outline-none"
                 />
                 <p className="text-gray-500 text-sm">{todayAppts.length} citas</p>
+                <button
+                  onClick={() => { setNewAppt({ ...newAppt, appointment_date: selectedDate }); setShowNewAppt(true); }}
+                  className="ml-auto bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-2 rounded-none flex items-center gap-2 transition-colors"
+                >
+                  <Plus size={14} /> Nueva Cita
+                </button>
               </div>
+
+              {/* Manual appointment form */}
+              {showNewAppt && (
+                <div className="bg-[#FBFBF9] border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
+                  <p className="text-gray-900 font-medium text-sm">Nueva Cita Manual</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className={labelCls}>Nombre cliente *</label>
+                      <input value={newAppt.client_name} onChange={(e) => setNewAppt({ ...newAppt, client_name: e.target.value })} placeholder="Nombre completo" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Teléfono</label>
+                      <input value={newAppt.client_phone} onChange={(e) => setNewAppt({ ...newAppt, client_phone: e.target.value })} placeholder="871 000 0000" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Email</label>
+                      <input value={newAppt.client_email} onChange={(e) => setNewAppt({ ...newAppt, client_email: e.target.value })} placeholder="correo@..." className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Servicio</label>
+                      <select value={newAppt.service_id} onChange={(e) => setNewAppt({ ...newAppt, service_id: e.target.value })} className={inputCls}>
+                        <option value="">Sin servicio</option>
+                        {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Especialista</label>
+                      <select value={newAppt.staff_id} onChange={(e) => setNewAppt({ ...newAppt, staff_id: e.target.value })} className={inputCls}>
+                        <option value="">Sin asignar</option>
+                        {staff.filter((s) => s.is_active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Fecha *</label>
+                      <input type="date" value={newAppt.appointment_date} onChange={(e) => setNewAppt({ ...newAppt, appointment_date: e.target.value })} className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Hora *</label>
+                      <input type="time" value={newAppt.appointment_time} onChange={(e) => setNewAppt({ ...newAppt, appointment_time: e.target.value })} className={inputCls} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className={labelCls}>Notas</label>
+                      <input value={newAppt.notes} onChange={(e) => setNewAppt({ ...newAppt, notes: e.target.value })} placeholder="Indicaciones adicionales..." className={inputCls} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={createManualAppointment} className="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-2 rounded-none flex items-center gap-1.5"><Check size={13} /> Crear Cita</button>
+                    <button onClick={() => setShowNewAppt(false)} className="bg-gray-100 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-200">Cancelar</button>
+                  </div>
+                </div>
+              )}
 
               {todayAppts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1145,6 +1292,83 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* ===== GALLERY ===== */}
+          {tab === 'gallery' && (
+            <div className="space-y-6">
+              <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleGalleryUpload(file);
+                }}
+              />
+              <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-3 shadow-sm">
+                <p className="text-gray-900 font-medium text-sm">Agregar Foto</p>
+                <div className="flex gap-3">
+                  <input
+                    value={newPhotoUrl}
+                    onChange={(e) => setNewPhotoUrl(e.target.value)}
+                    placeholder="URL de la imagen (ej: /images/foto.jpg)"
+                    className={`${inputCls} flex-1`}
+                  />
+                  <button onClick={addGalleryByUrl} className="bg-black hover:bg-neutral-800 text-white text-sm font-semibold px-4 py-2 rounded-none transition-colors flex items-center gap-2 shrink-0">
+                    <Plus size={14} /> Agregar URL
+                  </button>
+                </div>
+                <button
+                  onClick={() => galleryInputRef.current?.click()}
+                  disabled={uploadingGallery}
+                  className="bg-[#FBFBF9] border border-gray-200 hover:border-[#111111] text-gray-600 text-sm font-medium px-4 py-2 rounded-none transition-colors flex items-center gap-2"
+                >
+                  {uploadingGallery ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {uploadingGallery ? 'Subiendo...' : 'Subir desde dispositivo'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {galleryPhotos.map((photo, idx) => (
+                  <div key={photo.id} className={`relative group border rounded-xl overflow-hidden ${photo.is_active ? 'border-gray-200' : 'border-gray-100 opacity-50'}`}>
+                    <div className="aspect-[3/4] bg-gray-100">
+                      <img src={photo.url} alt="" className="w-full h-full object-cover object-top" loading="lazy" />
+                    </div>
+                    <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/60 transition-all duration-300 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => moveGalleryPhoto(photo.id, 'up')}
+                          disabled={idx === 0}
+                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2 py-1 rounded disabled:opacity-30"
+                        >↑</button>
+                        <button
+                          onClick={() => moveGalleryPhoto(photo.id, 'down')}
+                          disabled={idx === galleryPhotos.length - 1}
+                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2 py-1 rounded disabled:opacity-30"
+                        >↓</button>
+                      </div>
+                      <button
+                        onClick={() => toggleGalleryPhoto(photo)}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                          photo.is_active
+                            ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-700'
+                            : 'bg-red-50 border-red-200 text-red-700 hover:bg-green-50 hover:border-green-200 hover:text-green-700'
+                        }`}
+                      >
+                        {photo.is_active ? 'Visible' : 'Oculta'}
+                      </button>
+                      <button
+                        onClick={() => deleteGalleryPhoto(photo.id)}
+                        className="bg-red-50 border border-red-200 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                    <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+                      #{photo.display_order}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

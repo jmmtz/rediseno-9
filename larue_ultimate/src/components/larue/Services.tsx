@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Scissors, Sparkles, Hand, Heart, Palette, Star } from 'lucide-react';
+import { ChevronDown, Scissors, Sparkles, Hand, Heart, Palette, Star, Droplets } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { Service, Promotion } from '../../types';
+import type { Service } from '../../types';
 
 const images = {
   color1: '/images/4721a771-2fdb-4184-bd67-6bf5376abd6e.JPG',
@@ -12,48 +12,74 @@ const images = {
   makeup3: '/images/76fd356d-6254-4ae0-bcfa-461cc8db4632.JPG',
   cut1: '/images/a3b9c8cd-1ba5-4b82-a08b-94d3b7ec92fe.JPG',
   cut2: '/images/abd52b7c-de27-4c79-a38c-301c8e31d609.JPG',
-  style4: '/images/ff725c1d-1c9b-49e4-8b93-0ed4ae470c95.JPG',
   spa1: '/images/940d04e4-3714-4998-92fc-98e0ad3c796c.JPG',
   spa2: '/images/bc15a3dd-da05-4799-9700-2b213c2fc619.JPG',
   style1: '/images/ad0bddf1-ba27-4999-9362-597c2b5f24e3.JPG',
+  style2: '/images/ff725c1d-1c9b-49e4-8b93-0ed4ae470c95.JPG',
 };
 
-const STATIC_SERVICES = [
+interface ServiceGroup {
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  categories: string[];
+  previewImages: string[];
+  subGroups?: { label: string; category: string }[];
+}
+
+const SERVICE_GROUPS: ServiceGroup[] = [
   {
     id: 'coloracion',
     icon: <Palette size={18} />,
     title: 'Coloración Premium',
-    subtitle: 'Balayage · Babylights · Rayos · Color Gloss',
-    description: 'Técnicas avanzadas de coloración que respetan la integridad del cabello. Desde balayage natural hasta transformaciones bold, cada resultado es una obra de arte personalizada.',
-    images: [images.color1, images.color2, images.color3],
-    price: 'Desde $1,200',
+    categories: ['coloracion'],
+    previewImages: [images.color1, images.color2, images.color3],
   },
   {
     id: 'corte',
     icon: <Scissors size={18} />,
-    title: 'Corte & Peinado',
-    subtitle: 'Corte · Blow Dry · Styling · Mucota',
-    description: 'Cortes de autor que potencian tu estructura facial. Técnicas europeas combinadas con tendencias contemporáneas para un resultado que dure y se adapte a tu estilo de vida.',
-    images: [images.cut1, images.cut2, images.style4],
-    price: 'Desde $350',
+    title: 'Corte',
+    categories: ['corte'],
+    previewImages: [images.cut1, images.cut2, images.style2],
+  },
+  {
+    id: 'depilacion',
+    icon: <Sparkles size={18} />,
+    title: 'Depilaciones',
+    categories: ['depilacion'],
+    previewImages: [images.spa1, images.spa2, images.style1],
+  },
+  {
+    id: 'tratamientos',
+    icon: <Droplets size={18} />,
+    title: 'Tratamientos Capilares',
+    categories: ['tratamiento_hidratante', 'tratamiento_antifreeze'],
+    previewImages: [images.color2, images.color3, images.style1],
+    subGroups: [
+      { label: 'Hidratantes', category: 'tratamiento_hidratante' },
+      { label: 'Antifreeze', category: 'tratamiento_antifreeze' },
+    ],
   },
   {
     id: 'maquillaje',
     icon: <Star size={18} />,
-    title: 'Maquillaje & Peinado',
-    subtitle: 'Nupcial · Editorial · Evento · Dermaplane',
-    description: 'Maquillaje de alta costura para tus momentos más importantes. Desde looks naturales hasta composiciones editoriales, con productos de primera línea y técnicas de vanguardia.',
-    images: [images.makeup1, images.makeup2, images.makeup3],
-    price: 'Desde $800',
+    title: 'Maquillaje y Peinado',
+    categories: ['maquillaje'],
+    previewImages: [images.makeup1, images.makeup2, images.makeup3],
   },
   {
-    id: 'spa',
-    icon: <Sparkles size={18} />,
-    title: 'Faciales & Bienestar',
-    subtitle: 'Facial · Luz Roja LED · Cama Vibroacústica',
-    description: 'Rituales de belleza que trascienden el cuidado convencional. Faciales terapéuticos, terapia sensorial y tecnología de última generación para una piel radiante y un bienestar profundo.',
-    images: [images.spa1, images.spa2, images.style1],
-    price: 'Desde $600',
+    id: 'manos_pies',
+    icon: <Hand size={18} />,
+    title: 'Manos y Pies',
+    categories: ['manos_pies'],
+    previewImages: [images.spa1, images.spa2, images.style1],
+  },
+  {
+    id: 'faciales',
+    icon: <Heart size={18} />,
+    title: 'Faciales y Bienestar',
+    categories: ['facial'],
+    previewImages: [images.spa1, images.spa2, images.style1],
   },
 ];
 
@@ -78,7 +104,7 @@ interface ServicesProps {
 
 export default function Services({ onBookService }: ServicesProps) {
   const [services, setServices] = useState<Service[]>([]);
-  const [activeService, setActiveService] = useState<string | null>(null);
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const header = useScrollReveal();
 
   useEffect(() => {
@@ -87,19 +113,9 @@ export default function Services({ onBookService }: ServicesProps) {
     });
   }, []);
 
-  const scrollToCitas = () => {
-    document.getElementById('citas')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Enrich static services with real Supabase price if available
-  const enriched = STATIC_SERVICES.map((svc) => {
-    const match = services.find((s) =>
-      s.category === svc.id ||
-      s.name.toLowerCase().includes(svc.id) ||
-      svc.id.includes(s.category)
-    );
-    return { ...svc, realPrice: match ? `Desde $${match.price_min.toLocaleString()}` : svc.price };
-  });
+  function getServices(categories: string[]) {
+    return services.filter((s) => categories.includes(s.category));
+  }
 
   return (
     <section id="servicios" className="py-24 lg:py-36 bg-[#FAF9F6]">
@@ -123,76 +139,76 @@ export default function Services({ onBookService }: ServicesProps) {
 
         {/* Accordion */}
         <div className="space-y-0">
-          {enriched.map((svc, i) => {
-            // Find matching real service for booking
-            const realService = services.find((s) =>
-              s.category === svc.id || s.name.toLowerCase().includes(svc.id) || svc.id.includes(s.category)
-            );
+          {SERVICE_GROUPS.map((group, i) => {
+            const isOpen = activeGroup === group.id;
+            const groupServices = getServices(group.categories);
 
             return (
               <div
-                key={svc.id}
-                className="border-t border-[#1a1a1a]/10 cursor-pointer"
+                key={group.id}
+                className="border-t border-[#1a1a1a]/10"
                 style={{
                   opacity: header.visible ? 1 : 0,
                   transform: header.visible ? 'translateY(0)' : 'translateY(20px)',
                   transition: `opacity 0.8s ease-out ${i * 80}ms, transform 0.8s ease-out ${i * 80}ms`,
                 }}
-                onClick={() => setActiveService(activeService === svc.id ? null : svc.id)}
               >
-                {/* Row */}
-                <div className="flex items-center justify-between py-7 group">
+                {/* Category row */}
+                <div
+                  className="flex items-center justify-between py-7 cursor-pointer group"
+                  onClick={() => setActiveGroup(isOpen ? null : group.id)}
+                >
                   <div className="flex items-center gap-6">
-                    <span className="text-[#8B7355] group-hover:scale-110 transition-transform duration-300">{svc.icon}</span>
-                    <div>
-                      <h3 className="font-cormorant text-2xl lg:text-3xl font-light text-[#1a1a1a] group-hover:text-[#8B7355] transition-colors duration-300">
-                        {svc.title}
-                      </h3>
-                      <p className="text-xs tracking-[0.15em] uppercase text-[#8B7355]/70 mt-1 font-medium">{svc.subtitle}</p>
-                    </div>
+                    <span className="text-[#8B7355] group-hover:scale-110 transition-transform duration-300">{group.icon}</span>
+                    <h3 className="font-cormorant text-2xl lg:text-3xl font-light text-[#1a1a1a] group-hover:text-[#8B7355] transition-colors duration-300">
+                      {group.title}
+                    </h3>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <span className="hidden md:block font-cormorant text-xl text-[#5a5a5a]">{svc.realPrice}</span>
-                    <ChevronDown
-                      size={16}
-                      className="text-[#1a1a1a]/50 transition-transform duration-500"
-                      style={{ transform: activeService === svc.id ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                    />
-                  </div>
+                  <ChevronDown
+                    size={16}
+                    className="text-[#1a1a1a]/50 transition-transform duration-500"
+                    style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                  />
                 </div>
 
                 {/* Expanded panel */}
                 <div
                   className="overflow-hidden transition-all duration-700 ease-in-out"
-                  style={{ maxHeight: activeService === svc.id ? '600px' : '0' }}
+                  style={{ maxHeight: isOpen ? '800px' : '0' }}
                 >
                   <div className="pb-10 grid grid-cols-1 lg:grid-cols-5 gap-8">
-                    <div className="lg:col-span-2 flex flex-col justify-between">
-                      <p className="text-sm text-[#5a5a5a] leading-relaxed font-light">{svc.description}</p>
-                      <div className="mt-8">
-                        <p className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium mb-2">Precio referencial</p>
-                        <p className="font-cormorant text-3xl font-light text-[#1a1a1a]">{svc.realPrice}</p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (realService) {
-                              onBookService(realService);
-                            } else {
-                              scrollToCitas();
-                            }
-                          }}
-                          className="mt-6 inline-flex items-center gap-2 text-xs tracking-[0.2em] uppercase border border-[#1a1a1a] px-8 py-3 hover:bg-[#1a1a1a] hover:text-[#FAF9F6] transition-all duration-300"
-                        >
-                          Reservar
-                        </button>
-                      </div>
+                    {/* Services list */}
+                    <div className="lg:col-span-2">
+                      {group.subGroups ? (
+                        group.subGroups.map((sub) => {
+                          const subServices = services.filter((s) => s.category === sub.category);
+                          return (
+                            <div key={sub.label} className="mb-5">
+                              <p className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium mb-2">{sub.label}</p>
+                              <div className="space-y-2">
+                                {subServices.map((svc) => (
+                                  <ServiceButton key={svc.id} service={svc} onBook={onBookService} />
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="space-y-2">
+                          {groupServices.map((svc) => (
+                            <ServiceButton key={svc.id} service={svc} onBook={onBookService} />
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Preview images */}
                     <div className="lg:col-span-3 grid grid-cols-3 gap-3">
-                      {svc.images.map((img, j) => (
+                      {group.previewImages.map((img, j) => (
                         <div key={j} className="overflow-hidden aspect-[3/4]">
                           <img
                             src={img}
-                            alt={svc.title}
+                            alt={group.title}
                             className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-700"
                           />
                         </div>
@@ -207,5 +223,21 @@ export default function Services({ onBookService }: ServicesProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+function ServiceButton({ service, onBook }: { service: Service; onBook: (s: Service) => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onBook(service); }}
+      className="w-full text-left group/svc flex items-center justify-between px-4 py-3 border border-[#1a1a1a]/10 hover:border-[#1a1a1a] hover:bg-[#1a1a1a] transition-all duration-200"
+    >
+      <span className="text-sm text-[#1a1a1a] group-hover/svc:text-[#FAF9F6] font-medium transition-colors duration-200">
+        {service.name}
+      </span>
+      <span className="text-xs tracking-[0.15em] uppercase text-[#8B7355] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
+        Reservar
+      </span>
+    </button>
   );
 }
