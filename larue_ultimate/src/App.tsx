@@ -305,7 +305,7 @@ export default function App() {
       />
 
       <Hero onBookClick={() => setShowBooking(true)} />
-      <ReviewsSection />
+      <ReviewsTicker />
       <Services onBookService={handleBookService} />
       <Gallery />
       <CitasSection onBookClick={() => setShowBooking(true)} />
