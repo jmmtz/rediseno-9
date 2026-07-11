@@ -1330,26 +1330,36 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {galleryPhotos.map((photo, idx) => (
-                  <div key={photo.id} className={`relative group border rounded-xl overflow-hidden ${photo.is_active ? 'border-gray-200' : 'border-gray-100 opacity-50'}`}>
-                    <div className="aspect-[3/4] bg-gray-100">
-                      <img src={photo.url} alt="" className="w-full h-full object-cover object-top" loading="lazy" />
-                    </div>
-                    <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/60 transition-all duration-300 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                      <div className="flex gap-1">
+                  <div key={photo.id} className={`relative group border rounded-xl overflow-hidden flex flex-col ${photo.is_active ? 'border-gray-200' : 'border-red-200'}`}>
+                    <div className="aspect-[3/4] bg-gray-100 relative">
+                      <img
+                        src={photo.url}
+                        alt=""
+                        className={`w-full h-full object-cover object-top transition-opacity duration-200 ${photo.is_active ? '' : 'opacity-40'}`}
+                        loading="lazy"
+                      />
+                      {/* Hover overlay with order controls */}
+                      <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/50 transition-all duration-300 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                         <button
                           onClick={() => moveGalleryPhoto(photo.id, 'up')}
                           disabled={idx === 0}
-                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2 py-1 rounded disabled:opacity-30"
+                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
                         >↑</button>
                         <button
                           onClick={() => moveGalleryPhoto(photo.id, 'down')}
                           disabled={idx === galleryPhotos.length - 1}
-                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2 py-1 rounded disabled:opacity-30"
+                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
                         >↓</button>
                       </div>
+                      <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+                        #{photo.display_order}
+                      </div>
+                    </div>
+                    {/* Always-visible controls bar */}
+                    <div className="flex items-center gap-1 p-2 bg-white border-t border-gray-100">
                       <button
                         onClick={() => toggleGalleryPhoto(photo)}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                        className={`flex-1 text-xs font-semibold py-1.5 rounded border transition-colors ${
                           photo.is_active
                             ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-700'
                             : 'bg-red-50 border-red-200 text-red-700 hover:bg-green-50 hover:border-green-200 hover:text-green-700'
@@ -1359,13 +1369,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       </button>
                       <button
                         onClick={() => deleteGalleryPhoto(photo.id)}
-                        className="bg-red-50 border border-red-200 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
+                        className="text-gray-400 hover:text-red-500 p-1.5 rounded border border-transparent hover:border-red-200 hover:bg-red-50 transition-colors"
+                        title="Eliminar"
                       >
-                        Eliminar
+                        <Trash2 size={13} />
                       </button>
-                    </div>
-                    <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
-                      #{photo.display_order}
                     </div>
                   </div>
                 ))}

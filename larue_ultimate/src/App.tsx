@@ -85,78 +85,48 @@ function useScrollReveal() {
   return { ref, visible };
 }
 
-// ── Google Reviews section ────────────────────────────────────────────────────
+// ── Reviews ticker ───────────────────────────────────────────────────────────
 const REVIEWS = [
-  { name: 'Cristina', rating: 5, text: 'Tengo más de 15 años yendo a LaRue para maquillaje y peinado. Siempre salgo feliz. Excelente servicio y maquillaje y peinado de calidad. 100% lo recomiendo a cualquier persona.', time: 'hace un año' },
-  { name: 'Ricardo Tapia-Iturriaga', rating: 5, text: 'Personal amable, atento y cordial. Estuve de visita en la ciudad y no sabía dónde cortarme el pelo, así que hice cita por Instagram y amablemente me recibieron — quedé muy satisfecho con el resultado. Excelente servicio.', time: 'hace 5 años' },
-  { name: 'Sofia Flores Subealdea', rating: 5, text: 'Excelente servicio. Sarai, la dueña, siempre está a la vanguardia de maquillaje, tinte, corte dama y caballero. They speak English ;)', time: 'hace 6 años' },
-  { name: 'Andrea Sat', rating: 5, text: 'Excelente el corte de cabello y tratamiento Muccota.', time: 'hace 5 años' },
-  { name: 'Manuel Blanco', rating: 5, text: 'Muy atentas y serviciales.', time: 'hace 6 años' },
-  { name: 'Felipe Juan Ramos', rating: 5, text: 'Excelente servicio.', time: 'hace 8 años' },
+  { name: 'Cristina', rating: 5, text: 'Tengo más de 15 años yendo a LaRue para maquillaje y peinado. Siempre salgo feliz. Excelente servicio de calidad.' },
+  { name: 'Ricardo Tapia', rating: 5, text: 'Personal amable, atento y cordial. Hice cita por Instagram y me recibieron muy bien — quedé muy satisfecho con el resultado.' },
+  { name: 'Sofia Flores', rating: 5, text: 'Excelente servicio. Sarai, la dueña, siempre está a la vanguardia de maquillaje, tinte y corte dama y caballero.' },
+  { name: 'Andrea Sat', rating: 5, text: 'Excelente el corte de cabello y tratamiento Muccota.' },
+  { name: 'José Luis López', rating: 5, text: 'Salón de belleza para mujeres distinguidas.' },
+  { name: 'Manuel Blanco', rating: 5, text: 'Muy atentas y serviciales.' },
+  { name: 'Estela Castorena', rating: 5, text: 'Excelente servicio.' },
+  { name: 'Felipe Juan Ramos', rating: 5, text: 'Excelente servicio.' },
 ];
 
-function StarIcon() {
+function ReviewsTicker() {
+  const doubled = [...REVIEWS, ...REVIEWS];
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-    </svg>
-  );
-}
-
-function ReviewsSection() {
-  const { ref, visible } = useScrollReveal();
-  return (
-    <section className="py-24 lg:py-36 bg-[#FAF9F6]">
-      <div className="max-w-7xl mx-auto px-6 lg:px-12">
-        <div
-          ref={ref}
-          style={{
-            opacity: visible ? 1 : 0,
-            transform: visible ? 'translateY(0)' : 'translateY(20px)',
-            transition: 'opacity 0.8s ease-out, transform 0.8s ease-out',
-          }}
-        >
-          <div className="mb-14 flex flex-col md:flex-row md:items-end gap-6">
+    <section className="py-10 bg-[#1a1a1a]/[0.03] border-y border-[#1a1a1a]/6 overflow-hidden">
+      <div
+        className="flex gap-6 w-max"
+        style={{ animation: 'ticker-scroll 40s linear infinite' }}
+      >
+        {doubled.map((r, i) => (
+          <div key={i} className="flex items-center gap-4 bg-white border border-[#1a1a1a]/8 rounded-xl px-5 py-3 shrink-0 max-w-xs">
             <div>
-              <p className="text-xs tracking-[0.35em] uppercase text-[#8B7355] font-medium mb-4">Lo que dicen de nosotros</p>
-              <h2 className="font-cormorant text-4xl lg:text-6xl font-light text-[#1a1a1a] leading-tight">
-                4.6 en Google<br /><em className="text-[#8B7355]">· 620 opiniones</em>
-              </h2>
-            </div>
-            <div className="flex gap-0.5 md:mb-2">
-              {[...Array(5)].map((_, i) => <StarIcon key={i} />)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {REVIEWS.map((r, i) => (
-              <div
-                key={r.name}
-                className="bg-white border border-[#1a1a1a]/6 rounded-2xl p-6 flex flex-col gap-4"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(16px)',
-                  transition: `opacity 0.7s ease-out ${i * 70}ms, transform 0.7s ease-out ${i * 70}ms`,
-                }}
-              >
-                <div className="flex gap-0.5">
-                  {[...Array(r.rating)].map((_, j) => <StarIcon key={j} />)}
-                </div>
-                <p className="text-[#3a3a3a] text-sm leading-relaxed font-light flex-1">"{r.text}"</p>
-                <div className="flex items-center gap-3 pt-2 border-t border-[#1a1a1a]/6">
-                  <div className="w-8 h-8 rounded-full bg-[#FFFBE6] flex items-center justify-center text-[#C9A000] font-bold text-xs shrink-0">
-                    {r.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-gray-900 text-xs font-semibold">{r.name}</p>
-                    <p className="text-gray-400 text-xs">{r.time}</p>
-                  </div>
-                </div>
+              <div className="flex gap-0.5 mb-1">
+                {[...Array(r.rating)].map((_, j) => (
+                  <svg key={j} width="11" height="11" viewBox="0 0 24 24" fill="#C9A000">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                ))}
               </div>
-            ))}
+              <p className="text-gray-700 text-xs leading-relaxed line-clamp-2">"{r.text}"</p>
+              <p className="text-gray-400 text-[10px] font-medium mt-1">{r.name}</p>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
+      <style>{`
+        @keyframes ticker-scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
     </section>
   );
 }

@@ -235,9 +235,16 @@ function ServiceButton({ service, onBook }: { service: Service; onBook: (s: Serv
       <span className="text-sm text-[#1a1a1a] group-hover/svc:text-[#FAF9F6] font-medium transition-colors duration-200">
         {service.name}
       </span>
-      <span className="text-xs tracking-[0.15em] uppercase text-[#8B7355] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
-        Reservar
-      </span>
+      <div className="flex items-center gap-3 shrink-0">
+        {service.price_min > 0 && (
+          <span className="text-xs text-[#5a5a5a] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
+            ${service.price_min.toLocaleString()}
+          </span>
+        )}
+        <span className="text-xs tracking-[0.15em] uppercase text-[#8B7355] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
+          Reservar
+        </span>
+      </div>
     </button>
   );
 }
