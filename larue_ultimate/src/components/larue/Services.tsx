@@ -3,29 +3,22 @@ import { ChevronDown, Scissors, Sparkles, Hand, Heart, Palette, Star, Droplets }
 import { supabase } from '../../lib/supabase';
 import type { Service } from '../../types';
 
-const images = {
-  color1: '/images/4721a771-2fdb-4184-bd67-6bf5376abd6e.JPG',
-  color2: '/images/41745add-f988-4be9-aa1b-9fc96225b06e.JPG',
-  color3: '/images/cd827f77-4bbd-4eed-b9aa-32d31137263b.JPG',
-  makeup1: '/images/4c8319b3-c30b-41b0-b998-6f860af23de5.JPG',
-  makeup2: '/images/7f892cac-94d1-4023-9bc0-b4f5a951822e.JPG',
-  makeup3: '/images/76fd356d-6254-4ae0-bcfa-461cc8db4632.JPG',
-  cut1: '/images/a3b9c8cd-1ba5-4b82-a08b-94d3b7ec92fe.JPG',
-  cut2: '/images/abd52b7c-de27-4c79-a38c-301c8e31d609.JPG',
-  spa1: '/images/940d04e4-3714-4998-92fc-98e0ad3c796c.JPG',
-  spa2: '/images/bc15a3dd-da05-4799-9700-2b213c2fc619.JPG',
-  style1: '/images/ad0bddf1-ba27-4999-9362-597c2b5f24e3.JPG',
-  style2: '/images/ff725c1d-1c9b-49e4-8b93-0ed4ae470c95.JPG',
-};
+interface MediaItem {
+  type: 'image' | 'video';
+  src: string;
+}
 
 interface ServiceGroup {
   id: string;
   icon: React.ReactNode;
   title: string;
   categories: string[];
-  previewImages: string[];
+  media: MediaItem[];
   subGroups?: { label: string; category: string }[];
 }
+
+const m = (src: string): MediaItem => ({ type: 'image', src });
+const v = (src: string): MediaItem => ({ type: 'video', src });
 
 const SERVICE_GROUPS: ServiceGroup[] = [
   {
@@ -33,53 +26,85 @@ const SERVICE_GROUPS: ServiceGroup[] = [
     icon: <Palette size={18} />,
     title: 'Coloración Premium',
     categories: ['coloracion'],
-    previewImages: [images.color1, images.color2, images.color3],
+    media: [
+      m('/images/4721a771-2fdb-4184-bd67-6bf5376abd6e.JPG'),
+      m('/images/41745add-f988-4be9-aa1b-9fc96225b06e.JPG'),
+      m('/images/cd827f77-4bbd-4eed-b9aa-32d31137263b.JPG'),
+    ],
   },
   {
     id: 'corte',
     icon: <Scissors size={18} />,
     title: 'Corte',
     categories: ['corte'],
-    previewImages: [images.cut1, images.cut2, images.style2],
+    media: [
+      m('/images/a3b9c8cd-1ba5-4b82-a08b-94d3b7ec92fe.JPG'),
+      m('/images/abd52b7c-de27-4c79-a38c-301c8e31d609.JPG'),
+      m('/images/ff725c1d-1c9b-49e4-8b93-0ed4ae470c95.JPG'),
+    ],
   },
   {
     id: 'depilacion',
     icon: <Sparkles size={18} />,
-    title: 'Depilaciones',
+    title: 'Depilaciones Faciales',
     categories: ['depilacion'],
-    previewImages: [images.spa1, images.spa2, images.style1],
+    media: [
+      m('/images/e5c3e012-d00f-4e0d-9819-6daf02d8f5e0.JPG'),
+      m('/images/e5a71c0b-8cbc-47ff-8be2-3ecfd4560672.JPG'),
+      m('/images/bd6b63f1-a623-45a0-96c0-37e7623f914b.JPG'),
+    ],
   },
   {
     id: 'tratamientos',
     icon: <Droplets size={18} />,
     title: 'Tratamientos Capilares',
-    categories: ['tratamiento_hidratante', 'tratamiento_antifreeze'],
-    previewImages: [images.color2, images.color3, images.style1],
+    categories: ['tratamiento_hidratante', 'tratamiento_alisado'],
+    media: [
+      m('/images/41745add-f988-4be9-aa1b-9fc96225b06e.JPG'),
+      m('/images/e3cacf9c-255d-45d6-8a06-c9241bb86726.JPG'),
+      m('/images/cd827f77-4bbd-4eed-b9aa-32d31137263b.JPG'),
+    ],
     subGroups: [
       { label: 'Hidratantes', category: 'tratamiento_hidratante' },
-      { label: 'Antifreeze', category: 'tratamiento_antifreeze' },
+      { label: 'Alisado', category: 'tratamiento_alisado' },
     ],
   },
   {
     id: 'maquillaje',
     icon: <Star size={18} />,
     title: 'Maquillaje y Peinado',
-    categories: ['maquillaje'],
-    previewImages: [images.makeup1, images.makeup2, images.makeup3],
+    categories: ['maquillaje', 'peinado'],
+    media: [
+      m('/images/4c8319b3-c30b-41b0-b998-6f860af23de5.JPG'),
+      m('/images/7f892cac-94d1-4023-9bc0-b4f5a951822e.JPG'),
+      m('/images/76fd356d-6254-4ae0-bcfa-461cc8db4632.JPG'),
+    ],
+    subGroups: [
+      { label: 'Peinado', category: 'peinado' },
+      { label: 'Maquillaje', category: 'maquillaje' },
+    ],
   },
   {
     id: 'manos_pies',
     icon: <Hand size={18} />,
     title: 'Manos y Pies',
     categories: ['manos_pies'],
-    previewImages: [images.spa1, images.spa2, images.style1],
+    media: [
+      m('/images/0108ffd1-3140-48e8-994e-cd5cf422e400.JPG'),
+      m('/images/940d04e4-3714-4998-92fc-98e0ad3c796c.JPG'),
+      m('/images/bc15a3dd-da05-4799-9700-2b213c2fc619.JPG'),
+    ],
   },
   {
     id: 'faciales',
     icon: <Heart size={18} />,
     title: 'Faciales y Bienestar',
     categories: ['facial'],
-    previewImages: [images.spa1, images.spa2, images.style1],
+    media: [
+      m('/images/ad0bddf1-ba27-4999-9362-597c2b5f24e3.JPG'),
+      v('/videos/terapia_sensorial.mp4'),
+      v('/videos/terapia_de_luz_roja_led.mp4'),
+    ],
   },
 ];
 
@@ -135,6 +160,14 @@ export default function Services({ onBookService }: ServicesProps) {
           <h2 className="font-cormorant text-4xl lg:text-6xl font-light text-[#1a1a1a] leading-tight max-w-xl">
             El arte de la<br /><em>belleza auténtica</em>
           </h2>
+          {/* Premium guarantee — subtle */}
+          <div className="flex items-center gap-3 mt-5">
+            <div className="h-px w-6 bg-[#C9A96E]/50" />
+            <span className="text-[10px] tracking-[0.4em] uppercase text-[#8B7355]/70 font-medium">
+              Garantía de resultado premium
+            </span>
+            <div className="h-px w-6 bg-[#C9A96E]/50" />
+          </div>
         </div>
 
         {/* Accordion */}
@@ -174,7 +207,7 @@ export default function Services({ onBookService }: ServicesProps) {
                 {/* Expanded panel */}
                 <div
                   className="overflow-hidden transition-all duration-700 ease-in-out"
-                  style={{ maxHeight: isOpen ? '800px' : '0' }}
+                  style={{ maxHeight: isOpen ? '1400px' : '0' }}
                 >
                   <div className="pb-10 grid grid-cols-1 lg:grid-cols-5 gap-8">
                     {/* Services list */}
@@ -202,15 +235,26 @@ export default function Services({ onBookService }: ServicesProps) {
                       )}
                     </div>
 
-                    {/* Preview images */}
+                    {/* Preview media */}
                     <div className="lg:col-span-3 grid grid-cols-3 gap-3">
-                      {group.previewImages.map((img, j) => (
+                      {group.media.map((item, j) => (
                         <div key={j} className="overflow-hidden aspect-[3/4]">
-                          <img
-                            src={img}
-                            alt={group.title}
-                            className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-700"
-                          />
+                          {item.type === 'video' ? (
+                            <video
+                              src={item.src}
+                              autoPlay
+                              muted
+                              loop
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={item.src}
+                              alt={group.title}
+                              className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-700"
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -227,6 +271,12 @@ export default function Services({ onBookService }: ServicesProps) {
 }
 
 function ServiceButton({ service, onBook }: { service: Service; onBook: (s: Service) => void }) {
+  const priceLabel = service.price_min > 0
+    ? (service.price_max > service.price_min
+        ? `$${service.price_min.toLocaleString()}–$${service.price_max.toLocaleString()}`
+        : `$${service.price_min.toLocaleString()}`)
+    : null;
+
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onBook(service); }}
@@ -236,9 +286,9 @@ function ServiceButton({ service, onBook }: { service: Service; onBook: (s: Serv
         {service.name}
       </span>
       <div className="flex items-center gap-3 shrink-0">
-        {service.price_min > 0 && (
+        {priceLabel && (
           <span className="text-xs text-[#5a5a5a] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
-            ${service.price_min.toLocaleString()}
+            {priceLabel}
           </span>
         )}
         <span className="text-xs tracking-[0.15em] uppercase text-[#8B7355] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
