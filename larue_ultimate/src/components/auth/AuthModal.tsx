@@ -83,7 +83,7 @@ export default function AuthModal({ initialView = 'login', onClose, onAuthSucces
       <div className="bg-[#FBFBF9] rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
-          <img src="/images/IMG_4562.PNG" alt="La Rue" className="h-8 w-auto object-contain" />
+          <img src="/images/logos-buenos-negro.png" alt="La Rue" className="h-8 w-auto object-contain" />
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors rounded-full p-1">
             <X size={20} />
           </button>

@@ -12,7 +12,7 @@ export default function Footer() {
 
           {/* Brand */}
           <div className="md:col-span-2">
-            <img src="/images/IMG_4562.PNG" alt="La Rue" className="h-12 w-auto object-contain brightness-0 invert mb-6" />
+            <img src="/images/logos-buenos-negro.png" alt="La Rue" className="h-12 w-auto object-contain mb-6" />
             <p className="text-sm text-[#FAF9F6]/55 font-light leading-relaxed max-w-sm">
               Un refugio de belleza y bienestar donde cada detalle está pensado para ofrecerte una experiencia sin igual. Lujo silencioso, cuidado genuino.
             </p>

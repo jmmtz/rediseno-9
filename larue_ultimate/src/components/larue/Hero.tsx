@@ -72,10 +72,9 @@ export default function Hero({ onBookClick }: HeroProps) {
         {/* Logo */}
         <div className="animate-fade-in-up animation-delay-400 mb-10">
           <img
-            src="/IMG_4562.PNG"
+            src="/images/logos-buenos-main.png"
             alt="La Rue Salon & Spa"
             className="h-28 md:h-40 lg:h-52 w-auto object-contain"
-            style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
           />
         </div>
 

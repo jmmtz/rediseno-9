@@ -48,7 +48,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           {/* LA RUE LOGO */}
-          <img src="/images/IMG_4562.PNG" alt="La Rue" className="h-14 w-auto object-contain mx-auto mb-4" />
+          <img src="/images/logos-buenos-main.png" alt="La Rue" className="h-14 w-auto object-contain mx-auto mb-4" />
           <p className="text-gray-500 text-sm">Panel de Administración</p>
         </div>
 

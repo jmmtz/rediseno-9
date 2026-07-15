@@ -66,9 +66,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [uploadingAvatarFor, setUploadingAvatarFor] = useState<string | null>(null);
 
   // Gallery state
-  interface GalleryPhoto { id: string; url: string; display_order: number; is_active: boolean; }
+  interface GalleryPhoto { id: string; url: string; display_order: number; is_active: boolean; category: string; }
   const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
   const [newPhotoUrl, setNewPhotoUrl] = useState('');
+  const [newPhotoCategory, setNewPhotoCategory] = useState('general');
+  const [uploadCategory, setUploadCategory] = useState('general');
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [uploadingGallery, setUploadingGallery] = useState(false);
 
@@ -239,7 +241,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   async function addGalleryByUrl() {
     if (!newPhotoUrl.trim()) return;
     const maxOrder = galleryPhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
-    const { data } = await supabase.from('gallery_photos').insert({ url: newPhotoUrl.trim(), display_order: maxOrder + 1, is_active: true }).select().single();
+    const { data } = await supabase.from('gallery_photos').insert({ url: newPhotoUrl.trim(), display_order: maxOrder + 1, is_active: true, category: newPhotoCategory }).select().single();
     if (data) setGalleryPhotos((prev) => [...prev, data]);
     setNewPhotoUrl('');
   }
@@ -251,7 +253,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     if (!error) {
       const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(path);
       const maxOrder = galleryPhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
-      const { data: newPhoto } = await supabase.from('gallery_photos').insert({ url: urlData.publicUrl, display_order: maxOrder + 1, is_active: true }).select().single();
+      const { data: newPhoto } = await supabase.from('gallery_photos').insert({ url: urlData.publicUrl, display_order: maxOrder + 1, is_active: true, category: uploadCategory }).select().single();
       if (newPhoto) setGalleryPhotos((prev) => [...prev, newPhoto]);
     }
     setUploadingGallery(false);
@@ -260,6 +262,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   async function toggleGalleryPhoto(photo: GalleryPhoto) {
     await supabase.from('gallery_photos').update({ is_active: !photo.is_active }).eq('id', photo.id);
     setGalleryPhotos((prev) => prev.map((p) => p.id === photo.id ? { ...p, is_active: !p.is_active } : p));
+  }
+
+  async function updateGalleryPhotoCategory(photo: GalleryPhoto, category: string) {
+    await supabase.from('gallery_photos').update({ category }).eq('id', photo.id);
+    setGalleryPhotos((prev) => prev.map((p) => p.id === photo.id ? { ...p, category } : p));
   }
 
   async function deleteGalleryPhoto(id: string) {
@@ -438,7 +445,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       {/* Sidebar */}
       <aside className="hidden lg:flex flex-col w-60 border-r border-gray-100 bg-[#FBFBF9] shrink-0 shadow-sm">
         <div className="p-5 border-b border-gray-100">
-          <img src="/images/IMG_4562.PNG" alt="La Rue" className="h-9 w-auto object-contain" />
+          <img src="/images/logos-buenos-negro.png" alt="La Rue" className="h-9 w-auto object-contain" />
           <p className="text-gray-400 text-xs mt-1 font-medium tracking-wide">Panel de Administración</p>
         </div>
         <nav className="flex-1 py-4 space-y-0.5 px-3">
@@ -1299,85 +1306,143 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {/* ===== GALLERY ===== */}
           {tab === 'gallery' && (
             <div className="space-y-6">
-              <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleGalleryUpload(file);
-                }}
-              />
-              <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-3 shadow-sm">
-                <p className="text-gray-900 font-medium text-sm">Agregar Foto</p>
-                <div className="flex gap-3">
-                  <input
-                    value={newPhotoUrl}
-                    onChange={(e) => setNewPhotoUrl(e.target.value)}
-                    placeholder="URL de la imagen (ej: /images/foto.jpg)"
-                    className={`${inputCls} flex-1`}
-                  />
-                  <button onClick={addGalleryByUrl} className="bg-black hover:bg-neutral-800 text-white text-sm font-semibold px-4 py-2 rounded-none transition-colors flex items-center gap-2 shrink-0">
-                    <Plus size={14} /> Agregar URL
-                  </button>
-                </div>
-                <button
-                  onClick={() => galleryInputRef.current?.click()}
-                  disabled={uploadingGallery}
-                  className="bg-[#FBFBF9] border border-gray-200 hover:border-[#111111] text-gray-600 text-sm font-medium px-4 py-2 rounded-none transition-colors flex items-center gap-2"
-                >
-                  {uploadingGallery ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {uploadingGallery ? 'Subiendo...' : 'Subir desde dispositivo'}
-                </button>
-              </div>
+              {(() => {
+                const GALLERY_CATEGORIES = [
+                  { value: 'coloracion', label: 'Coloración' },
+                  { value: 'corte', label: 'Corte' },
+                  { value: 'depilacion', label: 'Depilación Facial' },
+                  { value: 'tratamientos', label: 'Tratamientos Capilares' },
+                  { value: 'maquillaje', label: 'Maquillaje y Peinado' },
+                  { value: 'manos_pies', label: 'Manos y Pies' },
+                  { value: 'faciales', label: 'Faciales y Bienestar' },
+                  { value: 'general', label: 'General' },
+                ];
+                const CAT_ORDER = ['coloracion','corte','depilacion','tratamientos','maquillaje','manos_pies','faciales','general'];
+                const CAT_LABELS: Record<string,string> = Object.fromEntries(GALLERY_CATEGORIES.map(c => [c.value, c.label]));
+                const grouped = CAT_ORDER
+                  .map(cat => ({ category: cat, label: CAT_LABELS[cat], photos: galleryPhotos.filter(p => (p.category || 'general') === cat) }))
+                  .filter(g => g.photos.length > 0);
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {galleryPhotos.map((photo, idx) => (
-                  <div key={photo.id} className={`relative group border rounded-xl overflow-hidden flex flex-col ${photo.is_active ? 'border-gray-200' : 'border-red-200'}`}>
-                    <div className="aspect-[3/4] bg-gray-100 relative">
-                      <img
-                        src={photo.url}
-                        alt=""
-                        className={`w-full h-full object-cover object-top transition-opacity duration-200 ${photo.is_active ? '' : 'opacity-40'}`}
-                        loading="lazy"
-                      />
-                      {/* Hover overlay with order controls */}
-                      <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/50 transition-all duration-300 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-                        <button
-                          onClick={() => moveGalleryPhoto(photo.id, 'up')}
-                          disabled={idx === 0}
-                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
-                        >↑</button>
-                        <button
-                          onClick={() => moveGalleryPhoto(photo.id, 'down')}
-                          disabled={idx === galleryPhotos.length - 1}
-                          className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
-                        >↓</button>
+                return (
+                  <>
+                    <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleGalleryUpload(file);
+                      }}
+                    />
+                    <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-3 shadow-sm">
+                      <p className="text-gray-900 font-medium text-sm">Agregar Foto</p>
+                      <div className="flex gap-3">
+                        <input
+                          value={newPhotoUrl}
+                          onChange={(e) => setNewPhotoUrl(e.target.value)}
+                          placeholder="URL de la imagen (ej: /images/foto.jpg)"
+                          className={`${inputCls} flex-1`}
+                        />
+                        <select
+                          value={newPhotoCategory}
+                          onChange={(e) => setNewPhotoCategory(e.target.value)}
+                          className={`${inputCls} w-40`}
+                        >
+                          {GALLERY_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                        <button onClick={addGalleryByUrl} className="bg-black hover:bg-neutral-800 text-white text-sm font-semibold px-4 py-2 rounded-none transition-colors flex items-center gap-2 shrink-0">
+                          <Plus size={14} /> Agregar URL
+                        </button>
                       </div>
-                      <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
-                        #{photo.display_order}
+                      <div className="flex items-center gap-3">
+                        <select
+                          value={uploadCategory}
+                          onChange={(e) => setUploadCategory(e.target.value)}
+                          className={`${inputCls} w-48`}
+                        >
+                          {GALLERY_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                        <button
+                          onClick={() => galleryInputRef.current?.click()}
+                          disabled={uploadingGallery}
+                          className="bg-[#FBFBF9] border border-gray-200 hover:border-[#111111] text-gray-600 text-sm font-medium px-4 py-2 rounded-none transition-colors flex items-center gap-2"
+                        >
+                          {uploadingGallery ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                          {uploadingGallery ? 'Subiendo...' : 'Subir desde dispositivo'}
+                        </button>
                       </div>
                     </div>
-                    {/* Always-visible controls bar */}
-                    <div className="flex items-center gap-1 p-2 bg-white border-t border-gray-100">
-                      <button
-                        onClick={() => toggleGalleryPhoto(photo)}
-                        className={`flex-1 text-xs font-semibold py-1.5 rounded border transition-colors ${
-                          photo.is_active
-                            ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-700'
-                            : 'bg-red-50 border-red-200 text-red-700 hover:bg-green-50 hover:border-green-200 hover:text-green-700'
-                        }`}
-                      >
-                        {photo.is_active ? 'Visible' : 'Oculta'}
-                      </button>
-                      <button
-                        onClick={() => deleteGalleryPhoto(photo.id)}
-                        className="text-gray-400 hover:text-red-500 p-1.5 rounded border border-transparent hover:border-red-200 hover:bg-red-50 transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+
+                    {grouped.map(group => {
+                      const globalStartIdx = galleryPhotos.findIndex(p => (p.category || 'general') === group.category);
+                      return (
+                        <div key={group.category}>
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="h-px flex-1 bg-[#1a1a1a]/10" />
+                            <p className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium">{group.label}</p>
+                            <div className="h-px flex-1 bg-[#1a1a1a]/10" />
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {group.photos.map((photo, localIdx) => {
+                              const idx = globalStartIdx + localIdx;
+                              return (
+                                <div key={photo.id} className={`relative group border rounded-xl overflow-hidden flex flex-col ${photo.is_active ? 'border-gray-200' : 'border-red-200'}`}>
+                                  <div className="aspect-[3/4] bg-gray-100 relative">
+                                    <img
+                                      src={photo.url}
+                                      alt=""
+                                      className={`w-full h-full object-cover object-top transition-opacity duration-200 ${photo.is_active ? '' : 'opacity-40'}`}
+                                      loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/50 transition-all duration-300 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                                      <button
+                                        onClick={() => moveGalleryPhoto(photo.id, 'up')}
+                                        disabled={idx === 0}
+                                        className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
+                                      >↑</button>
+                                      <button
+                                        onClick={() => moveGalleryPhoto(photo.id, 'down')}
+                                        disabled={idx === galleryPhotos.length - 1}
+                                        className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
+                                      >↓</button>
+                                    </div>
+                                    <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+                                      #{photo.display_order}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 p-2 bg-white border-t border-gray-100">
+                                    <select
+                                      value={photo.category || 'general'}
+                                      onChange={(e) => updateGalleryPhotoCategory(photo, e.target.value)}
+                                      className="flex-1 text-xs border border-gray-200 rounded px-1.5 py-1 bg-[#FBFBF9] text-gray-700 focus:outline-none focus:border-[#111111]"
+                                    >
+                                      {GALLERY_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                    </select>
+                                    <button
+                                      onClick={() => toggleGalleryPhoto(photo)}
+                                      className={`text-xs font-semibold py-1.5 px-2 rounded border transition-colors ${
+                                        photo.is_active
+                                          ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-700'
+                                          : 'bg-red-50 border-red-200 text-red-700 hover:bg-green-50 hover:border-green-200 hover:text-green-700'
+                                      }`}
+                                    >
+                                      {photo.is_active ? 'On' : 'Off'}
+                                    </button>
+                                    <button
+                                      onClick={() => deleteGalleryPhoto(photo.id)}
+                                      className="text-gray-400 hover:text-red-500 p-1.5 rounded border border-transparent hover:border-red-200 hover:bg-red-50 transition-colors"
+                                      title="Eliminar"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
             </div>
           )}
 

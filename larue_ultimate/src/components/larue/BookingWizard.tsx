@@ -200,13 +200,17 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   // Compute which time slots are available for the selected date
   const todayISO = new Date().toISOString().split('T')[0];
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
+  // A time slot is truly available only if at least one eligible staff member is free at that time
   const availableTimeSlots = TIME_SLOTS.filter((t) => {
-    if (bookedSlots.has(t)) return false;
     if (selectedDate === todayISO) {
       const [h, m] = t.split(':').map(Number);
       if (h * 60 + m <= nowMinutes) return false;
     }
-    return true;
+    // Check if at least one eligible staff member is available at this time
+    const bookedAtThisTime = bookedStaffBySlot[t] ?? [];
+    const freeStaff = eligibleStaff.filter((s) => !bookedAtThisTime.includes(s.id));
+    return freeStaff.length > 0;
   });
 
   const servicePrice = selectedService ? selectedService.price_min : 0;
@@ -374,9 +378,9 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   const goBack = () => { if (currentIndex > 0) setStep(stepOrder[currentIndex - 1]); };
 
   const inputCls = "w-full bg-[#FBFBF9] border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-[#111111] focus:ring-2 focus:ring-[#111111]/20 focus:outline-none transition-all text-sm";
-  const canProceedDateTime = selectedDate && selectedTime;
-  const canProceedService = selectedService;
-  const canProceedStylist = anyProfessional || selectedStaff;
+  const canProceedDateTime = selectedDate && selectedTime && availableTimeSlots.length > 0;
+  const canProceedService = selectedService && eligibleStaff.length > 0;
+  const canProceedStylist = (anyProfessional || selectedStaff) && availableStaff.length > 0;
   const canProceedInfo = clientName.trim() && clientPhone.trim();
 
   const finalStaffName = anyProfessional
@@ -471,6 +475,11 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
           {step === 'service' && (
             <div className="space-y-4">
               <p className="text-gray-500 text-sm">Selecciona el servicio deseado</p>
+              {selectedService && eligibleStaff.length === 0 && (
+                <p className="text-amber-600 text-xs bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  No hay especialistas disponibles para este servicio en este momento. Por favor intenta más tarde.
+                </p>
+              )}
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {services.map((service) => (
                   <button

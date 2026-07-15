@@ -61,7 +61,7 @@ export default function Header({
         {/* Logo */}
         <button onClick={() => onTabChange('larue')} className="flex items-center shrink-0">
           <img
-            src="/images/IMG_4562.PNG"
+            src="/images/logos-buenos-main.png"
             alt="La Rue Salon & Spa"
             className={`h-10 w-auto object-contain transition-all duration-300 ${scrolled ? '' : 'brightness-0 invert'}`}
           />
