@@ -21,6 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_ORDER = ['coloracion', 'corte', 'depilacion', 'tratamientos', 'maquillaje', 'manos_pies', 'faciales', 'general'];
+const MAX_PHOTOS_PER_SECTION = 4;
 
 function useScrollReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -56,7 +57,7 @@ export default function Gallery() {
     .map((cat) => ({
       category: cat,
       label: CATEGORY_LABELS[cat] || cat,
-      photos: photos.filter((p) => (p.category || 'general') === cat),
+      photos: photos.filter((p) => (p.category || 'general') === cat).slice(0, MAX_PHOTOS_PER_SECTION),
     }))
     .filter((g) => g.photos.length > 0);
 
@@ -89,19 +90,21 @@ export default function Gallery() {
         {grouped.map((group, gi) => {
           const withSpan = group.photos.map((p, i) => ({
             ...p,
-            span: (i === 0 || i === 3 || i === 7) ? 'row-span-2' : '',
+            span: (i === 0 || i === 3) ? 'row-span-2' : '',
           }));
 
           return (
             <div key={group.category} className={gi > 0 ? 'mt-16' : ''}>
-              {/* Section divider */}
-              <div className="flex items-center gap-4 mb-8">
-                <div className="h-px flex-1 bg-[#1a1a1a]/10" />
-                <h3 className="font-cormorant text-xl lg:text-2xl font-light text-[#1a1a1a] tracking-wide">
-                  {group.label}
-                </h3>
-                <div className="h-px flex-1 bg-[#1a1a1a]/10" />
-              </div>
+              {/* Section divider — only for non-general categories */}
+              {group.category !== 'general' && (
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="h-px flex-1 bg-[#1a1a1a]/10" />
+                  <h3 className="font-cormorant text-xl lg:text-2xl font-light text-[#1a1a1a] tracking-wide">
+                    {group.label}
+                  </h3>
+                  <div className="h-px flex-1 bg-[#1a1a1a]/10" />
+                </div>
+              )}
 
               {/* Photo grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[200px] md:auto-rows-[220px] gap-3">

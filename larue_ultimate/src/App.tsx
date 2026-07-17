@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import type { Service } from './types';
 
-import Header from './components/layout/Header';
+import Header, { type SectionTab } from './components/layout/Header';
 import Hero from './components/larue/Hero';
 import Services from './components/larue/Services';
 import Gallery from './components/larue/Gallery';
@@ -11,8 +11,10 @@ import BookingWizard from './components/larue/BookingWizard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AuthModal from './components/auth/AuthModal';
 import CustomerDashboard from './components/auth/CustomerDashboard';
+import BeautyPage from './components/larue/BeautyPage';
+import ArtPage from './components/larue/ArtPage';
 
-type AppTab = 'larue' | 'admin';
+type AppTab = SectionTab;
 interface CustomerSession { id: string; email: string; name: string; }
 interface PendingBooking {
   client_name: string;
@@ -166,7 +168,7 @@ function CitasSection({ onBookClick }: { onBookClick: () => void }) {
 
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [activeTab, setActiveTab]         = useState<AppTab>('larue');
+  const [activeTab, setActiveTab]         = useState<AppTab>('salon');
   const [isAdmin, setIsAdmin]             = useState(false);
   const [customer, setCustomer]           = useState<CustomerSession | null>(null);
   const [checkingAuth, setCheckingAuth]   = useState(true);
@@ -261,7 +263,7 @@ export default function App() {
       return;
     }
     setActiveTab(tab);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (tab !== 'salon') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function handleAuthSuccess(_role: 'admin' | 'customer') {
@@ -292,10 +294,80 @@ export default function App() {
     return <AdminDashboard onLogout={handleLogout} />;
   }
 
+  if (activeTab === 'beauty') {
+    return (
+      <div className="bg-[#FAF9F6] text-[#1a1a1a] min-h-screen">
+        <Header
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          isAdmin={isAdmin}
+          customer={customer}
+          onLoginClick={() => { setAuthModalView('login'); setShowAuthModal(true); }}
+          onSignUpClick={() => { setAuthModalView('signup'); setShowAuthModal(true); }}
+          onCustomerDashClick={() => setShowCustomerDash(true)}
+        />
+        <BeautyPage />
+        <Footer />
+        {showAuthModal && (
+          <AuthModal
+            initialView={authModalView}
+            onClose={() => setShowAuthModal(false)}
+            onAuthSuccess={handleAuthSuccess}
+          />
+        )}
+        {showCustomerDash && customer && (
+          <CustomerDashboard
+            userId={customer.id}
+            userEmail={customer.email}
+            userName={customer.name}
+            onClose={() => setShowCustomerDash(false)}
+            onLogout={() => { setShowCustomerDash(false); handleLogout(); }}
+            onBookNow={() => { setShowCustomerDash(false); setActiveTab('salon'); setShowBooking(true); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (activeTab === 'art') {
+    return (
+      <div className="bg-[#FAF9F6] text-[#1a1a1a] min-h-screen">
+        <Header
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          isAdmin={isAdmin}
+          customer={customer}
+          onLoginClick={() => { setAuthModalView('login'); setShowAuthModal(true); }}
+          onSignUpClick={() => { setAuthModalView('signup'); setShowAuthModal(true); }}
+          onCustomerDashClick={() => setShowCustomerDash(true)}
+        />
+        <ArtPage />
+        <Footer />
+        {showAuthModal && (
+          <AuthModal
+            initialView={authModalView}
+            onClose={() => setShowAuthModal(false)}
+            onAuthSuccess={handleAuthSuccess}
+          />
+        )}
+        {showCustomerDash && customer && (
+          <CustomerDashboard
+            userId={customer.id}
+            userEmail={customer.email}
+            userName={customer.name}
+            onClose={() => setShowCustomerDash(false)}
+            onLogout={() => { setShowCustomerDash(false); handleLogout(); }}
+            onBookNow={() => { setShowCustomerDash(false); setActiveTab('salon'); setShowBooking(true); }}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#FAF9F6] text-[#1a1a1a]">
       <Header
-        activeTab={activeTab}
+        activeTab={'salon'}
         onTabChange={handleTabChange}
         isAdmin={isAdmin}
         customer={customer}

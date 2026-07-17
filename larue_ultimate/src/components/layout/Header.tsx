@@ -7,18 +7,25 @@ interface CustomerSession {
   name: string;
 }
 
+export type SectionTab = 'salon' | 'beauty' | 'art' | 'admin';
+
 interface HeaderProps {
-  activeTab: 'larue' | 'admin';
-  onTabChange: (tab: 'larue' | 'admin') => void;
+  activeTab: SectionTab;
+  onTabChange: (tab: SectionTab) => void;
   isAdmin: boolean;
   customer: CustomerSession | null;
   onLoginClick: () => void;
   onSignUpClick: () => void;
   onCustomerDashClick: () => void;
-  onValmClick?: () => void;
 }
 
-const NAV_LINKS = [
+const NAV_TABS: { label: string; tab: SectionTab }[] = [
+  { label: 'Salón y Spa', tab: 'salon' },
+  { label: 'Beauty', tab: 'beauty' },
+  { label: 'LaRue Art', tab: 'art' },
+];
+
+const SALON_LINKS = [
   { label: 'Servicios', id: 'servicios' },
   { label: 'Galería', id: 'galeria' },
   { label: 'Citas', id: 'citas' },
@@ -37,56 +44,87 @@ export default function Header({
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
+  const isLight = activeTab === 'beauty' || activeTab === 'art' || activeTab === 'admin';
+
   const scrollTo = (id: string) => {
     setMenuOpen(false);
-    if (activeTab !== 'larue') onTabChange('larue');
-    setTimeout(() => {
+    if (activeTab !== 'salon') {
+      onTabChange('salon');
+      setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    } else {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    }, activeTab !== 'larue' ? 100 : 0);
+    }
+  };
+
+  const handleTabClick = (tab: SectionTab) => {
+    setMenuOpen(false);
+    onTabChange(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const isLoggedIn = isAdmin || !!customer;
+  const useDarkText = scrolled || isLight;
 
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-500"
       style={{
-        backgroundColor: scrolled ? 'rgba(250,249,246,0.96)' : 'transparent',
-        backdropFilter: scrolled ? 'blur(12px)' : 'none',
-        borderBottom: scrolled ? '1px solid rgba(26,26,26,0.08)' : 'none',
+        backgroundColor: useDarkText ? 'rgba(250,249,246,0.96)' : 'transparent',
+        backdropFilter: useDarkText ? 'blur(12px)' : 'none',
+        borderBottom: useDarkText ? '1px solid rgba(26,26,26,0.08)' : 'none',
       }}
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between h-20">
 
         {/* Logo */}
-        <button onClick={() => onTabChange('larue')} className="flex items-center shrink-0">
+        <button onClick={() => handleTabClick('salon')} className="flex items-center shrink-0">
           <img
-            src="/images/logos-buenos-main.png"
+            src={useDarkText ? '/images/logos-buenos-main.png' : '/images/logos-buenos-negro.png'}
             alt="La Rue Salon & Spa"
-            className={`h-10 w-auto object-contain transition-all duration-300 ${scrolled ? '' : 'brightness-0 invert'}`}
+            className="h-10 w-auto object-contain transition-all duration-300"
           />
         </button>
 
         {/* Nav — desktop */}
         <nav className="hidden md:flex items-center gap-10">
-          {NAV_LINKS.map((link) => (
+          {NAV_TABS.map((nav) => (
+            <button
+              key={nav.tab}
+              onClick={() => handleTabClick(nav.tab)}
+              className={`text-xs tracking-[0.2em] uppercase font-medium transition-colors duration-300 ${
+                activeTab === nav.tab
+                  ? 'text-[#8B7355]'
+                  : useDarkText
+                    ? 'text-[#1a1a1a]/70 hover:text-[#8B7355]'
+                    : 'text-white/85 hover:text-white'
+              }`}
+            >
+              {nav.label}
+            </button>
+          ))}
+
+          {/* Sub-links for salon */}
+          {activeTab === 'salon' && SALON_LINKS.map((link) => (
             <button
               key={link.id}
               onClick={() => scrollTo(link.id)}
-              className={`text-xs tracking-[0.2em] uppercase font-medium transition-colors duration-300 ${
-                scrolled ? 'text-[#1a1a1a]/70 hover:text-[#8B7355]' : 'text-white/85 hover:text-white'
+              className={`text-xs tracking-[0.15em] uppercase font-light transition-colors duration-300 ${
+                useDarkText ? 'text-[#1a1a1a]/50 hover:text-[#8B7355]' : 'text-white/60 hover:text-white'
               }`}
             >
               {link.label}
             </button>
           ))}
+
           {isAdmin && (
             <button
-              onClick={() => onTabChange('admin')}
+              onClick={() => handleTabClick('admin')}
               className={`text-xs tracking-[0.2em] uppercase font-medium transition-colors duration-300 ${
                 activeTab === 'admin'
                   ? 'text-[#8B7355]'
-                  : scrolled ? 'text-[#1a1a1a]/70 hover:text-[#8B7355]' : 'text-white/85 hover:text-white'
+                  : useDarkText ? 'text-[#1a1a1a]/70 hover:text-[#8B7355]' : 'text-white/85 hover:text-white'
               }`}
             >
               Admin
@@ -100,13 +138,13 @@ export default function Header({
             <button
               onClick={onCustomerDashClick}
               className={`hidden md:flex items-center gap-2 text-xs font-medium px-4 py-2 border transition-all duration-300 ${
-                scrolled
+                useDarkText
                   ? 'border-[#1a1a1a]/20 text-[#1a1a1a]/70 hover:border-[#8B7355] hover:text-[#8B7355]'
                   : 'border-white/30 text-white/80 hover:border-white hover:text-white'
               }`}
             >
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                scrolled ? 'bg-[#1a1a1a]/10 text-[#1a1a1a]' : 'bg-white/20 text-white'
+                useDarkText ? 'bg-[#1a1a1a]/10 text-[#1a1a1a]' : 'bg-white/20 text-white'
               }`}>
                 {customer.name.charAt(0).toUpperCase()}
               </div>
@@ -119,7 +157,7 @@ export default function Header({
               <button
                 onClick={onLoginClick}
                 className={`flex items-center gap-1.5 text-xs tracking-[0.1em] uppercase font-medium px-4 py-2 border transition-all duration-300 ${
-                  scrolled
+                  useDarkText
                     ? 'border-[#1a1a1a]/20 text-[#1a1a1a]/70 hover:border-[#8B7355] hover:text-[#8B7355]'
                     : 'border-white/30 text-white/80 hover:border-white hover:text-white'
                 }`}
@@ -127,22 +165,24 @@ export default function Header({
                 <LogIn size={12} />
                 Ingresar
               </button>
-              <button
-                onClick={() => scrollTo('citas')}
-                className={`text-xs tracking-[0.15em] uppercase font-medium px-5 py-2.5 transition-all duration-300 ${
-                  scrolled
-                    ? 'bg-[#1a1a1a] text-[#FAF9F6] hover:bg-[#8B7355]'
-                    : 'bg-white/15 text-white hover:bg-white hover:text-[#1a1a1a]'
-                }`}
-              >
-                Reservar
-              </button>
+              {activeTab === 'salon' && (
+                <button
+                  onClick={() => scrollTo('citas')}
+                  className={`text-xs tracking-[0.15em] uppercase font-medium px-5 py-2.5 transition-all duration-300 ${
+                    useDarkText
+                      ? 'bg-[#1a1a1a] text-[#FAF9F6] hover:bg-[#8B7355]'
+                      : 'bg-white/15 text-white hover:bg-white hover:text-[#1a1a1a]'
+                  }`}
+                >
+                  Reservar
+                </button>
+              )}
             </div>
           )}
 
           {/* Mobile toggle */}
           <button
-            className={`md:hidden p-1.5 transition-colors ${scrolled ? 'text-[#1a1a1a]' : 'text-white'}`}
+            className={`md:hidden p-1.5 transition-colors ${useDarkText ? 'text-[#1a1a1a]' : 'text-white'}`}
             onClick={() => setMenuOpen(!menuOpen)}
           >
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -154,23 +194,36 @@ export default function Header({
       <div
         className="md:hidden overflow-hidden transition-all duration-500"
         style={{
-          maxHeight: menuOpen ? '480px' : '0',
+          maxHeight: menuOpen ? '520px' : '0',
           backgroundColor: 'rgba(250,249,246,0.98)',
         }}
       >
         <div className="px-6 py-8 flex flex-col gap-6 border-t border-[#1a1a1a]/8">
-          {NAV_LINKS.map((link) => (
+          {NAV_TABS.map((nav) => (
+            <button
+              key={nav.tab}
+              onClick={() => handleTabClick(nav.tab)}
+              className={`text-left text-sm tracking-[0.2em] uppercase font-medium transition-colors ${
+                activeTab === nav.tab ? 'text-[#8B7355]' : 'text-[#1a1a1a] hover:text-[#8B7355]'
+              }`}
+            >
+              {nav.label}
+            </button>
+          ))}
+
+          {activeTab === 'salon' && SALON_LINKS.map((link) => (
             <button
               key={link.id}
               onClick={() => scrollTo(link.id)}
-              className="text-left text-sm tracking-[0.2em] uppercase font-medium text-[#1a1a1a] hover:text-[#8B7355] transition-colors"
+              className="text-left text-sm tracking-[0.15em] uppercase font-light text-[#1a1a1a]/60 hover:text-[#8B7355] transition-colors pl-4"
             >
               {link.label}
             </button>
           ))}
+
           {isAdmin && (
             <button
-              onClick={() => { onTabChange('admin'); setMenuOpen(false); }}
+              onClick={() => handleTabClick('admin')}
               className="text-left text-sm tracking-[0.2em] uppercase font-medium text-[#8B7355]"
             >
               Admin Panel
@@ -200,12 +253,14 @@ export default function Header({
               >
                 <LogIn size={14} /> Iniciar Sesión
               </button>
-              <button
-                onClick={() => { scrollTo('citas'); }}
-                className="flex items-center justify-center gap-2 text-sm tracking-[0.1em] uppercase font-medium bg-[#1a1a1a] text-[#FAF9F6] px-4 py-3 hover:bg-[#8B7355] transition-colors"
-              >
-                <User size={14} /> Reservar Cita
-              </button>
+              {activeTab === 'salon' && (
+                <button
+                  onClick={() => { scrollTo('citas'); }}
+                  className="flex items-center justify-center gap-2 text-sm tracking-[0.1em] uppercase font-medium bg-[#1a1a1a] text-[#FAF9F6] px-4 py-3 hover:bg-[#8B7355] transition-colors"
+                >
+                  <User size={14} /> Reservar Cita
+                </button>
+              )}
             </div>
           )}
         </div>

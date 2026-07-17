@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload, Database, Image } from 'lucide-react';
+import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload, Database, Image, ShoppingBag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Appointment, Staff, Service, Coupon, Promotion, TrafficMode } from '../../types';
 import AppointmentModal from './AppointmentModal';
 
-type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery';
+type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery' | 'beauty';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -57,13 +57,22 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [editClientData, setEditClientData] = useState<{ name: string; phone: string; email: string }>({ name: '', phone: '', email: '' });
 
   // New forms state
-  const [newStaff, setNewStaff] = useState({ name: '', specialty: '', shift_start: '09:00', shift_end: '19:00', service_ids: [] as string[] });
+  const [newStaff, setNewStaff] = useState({ name: '', specialty: '', phone: '', shift_start: '09:00', shift_end: '19:00', service_ids: [] as string[] });
   const [newService, setNewService] = useState({ name: '', category: 'hair', price_min: 0, price_max: 0, duration_minutes: 60, maintenance_days: 30, description: '' });
   const [newCoupon, setNewCoupon] = useState({ code: '', discount_type: 'flat', discount_value: 0, expires_at: '', is_maintenance_coupon: false, requires_full_payment: false, max_uses: '' });
   const [newPromo, setNewPromo] = useState({ title: '', description: '', promo_type: 'banner', discount_type: 'percent', discount_value: 0, original_price: 0, promo_price: 0 });
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatarFor, setUploadingAvatarFor] = useState<string | null>(null);
+
+  // Beauty products state
+  interface BeautyProduct { id: string; title: string; description: string | null; product_type: string | null; brand: string | null; image_url: string | null; price: number; is_active: boolean; display_order: number; }
+  const [beautyProducts, setBeautyProducts] = useState<BeautyProduct[]>([]);
+  const [editingProduct, setEditingProduct] = useState<BeautyProduct | null>(null);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [productForm, setProductForm] = useState({ title: '', description: '', product_type: '', brand: '', image_url: '', price: '0' });
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingProduct, setUploadingProduct] = useState(false);
 
   // Gallery state
   interface GalleryPhoto { id: string; url: string; display_order: number; is_active: boolean; category: string; }
@@ -132,6 +141,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     // Load gallery photos
     const { data: gData } = await supabase.from('gallery_photos').select('*').order('display_order', { ascending: true });
     if (gData) setGalleryPhotos(gData);
+
+    const { data: bData } = await supabase.from('beauty_products').select('*').order('display_order', { ascending: true });
+    if (bData) setBeautyProducts(bData);
   }, []);
 
   const autoComplete = useCallback(async () => {
@@ -180,7 +192,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   async function addStaff() {
     if (!newStaff.name) return;
     await supabase.from('staff').insert(newStaff);
-    setNewStaff({ name: '', specialty: '', shift_start: '09:00', shift_end: '19:00', service_ids: [] });
+    setNewStaff({ name: '', specialty: '', phone: '', shift_start: '09:00', shift_end: '19:00', service_ids: [] });
     loadData();
   }
 
@@ -272,6 +284,68 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   async function deleteGalleryPhoto(id: string) {
     await supabase.from('gallery_photos').delete().eq('id', id);
     setGalleryPhotos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  // ─── Beauty Products CRUD ─────────────────────────────────────────────
+  async function loadBeautyProducts() {
+    const { data } = await supabase.from('beauty_products').select('*').order('display_order', { ascending: true });
+    if (data) setBeautyProducts(data as BeautyProduct[]);
+  }
+
+  async function saveProduct() {
+    const payload = {
+      title: productForm.title,
+      description: productForm.description || null,
+      product_type: productForm.product_type || null,
+      brand: productForm.brand || null,
+      image_url: productForm.image_url || null,
+      price: parseFloat(productForm.price) || 0,
+    };
+    if (editingProduct) {
+      await supabase.from('beauty_products').update(payload).eq('id', editingProduct.id);
+    } else {
+      const maxOrder = beautyProducts.reduce((m, p) => Math.max(m, p.display_order), 0);
+      await supabase.from('beauty_products').insert({ ...payload, display_order: maxOrder + 1, is_active: true });
+    }
+    setShowProductForm(false);
+    setEditingProduct(null);
+    setProductForm({ title: '', description: '', product_type: '', brand: '', image_url: '', price: '0' });
+    loadBeautyProducts();
+  }
+
+  async function handleProductImageUpload(file: File) {
+    setUploadingProduct(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `product-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('gallery').upload(fileName, file);
+    if (!upErr) {
+      const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(fileName);
+      setProductForm((prev) => ({ ...prev, image_url: urlData.publicUrl }));
+    }
+    setUploadingProduct(false);
+  }
+
+  async function toggleProduct(p: BeautyProduct) {
+    await supabase.from('beauty_products').update({ is_active: !p.is_active }).eq('id', p.id);
+    loadBeautyProducts();
+  }
+
+  async function deleteProduct(id: string) {
+    await supabase.from('beauty_products').delete().eq('id', id);
+    setBeautyProducts((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function startEditProduct(p: BeautyProduct) {
+    setEditingProduct(p);
+    setProductForm({
+      title: p.title,
+      description: p.description || '',
+      product_type: p.product_type || '',
+      brand: p.brand || '',
+      image_url: p.image_url || '',
+      price: String(p.price),
+    });
+    setShowProductForm(true);
   }
 
   async function moveGalleryPhoto(id: string, direction: 'up' | 'down') {
@@ -432,6 +506,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { key: 'staff', icon: <Users size={18} />, label: 'Personal' },
     { key: 'services', icon: <TrendingUp size={18} />, label: 'Servicios' },
     { key: 'gallery', icon: <Image size={18} />, label: 'Galería' },
+    { key: 'beauty', icon: <ShoppingBag size={18} />, label: 'Beauty' },
     { key: 'coupons', icon: <Tag size={18} />, label: 'Cupones' },
     { key: 'promos', icon: <TrendingUp size={18} />, label: 'Promos' },
     { key: 'settings', icon: <Settings size={18} />, label: 'Configuración' },
@@ -848,6 +923,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <div>
                     <label className={labelCls}>Especialidad</label>
                     <input value={newStaff.specialty} onChange={(e) => setNewStaff({ ...newStaff, specialty: e.target.value })} placeholder="Ej: Colorista" className={inputCls} />
+                    <input value={newStaff.phone} onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })} placeholder="Tel/WhatsApp (ej: 5215512345678)" className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>Entrada</label>
@@ -926,7 +1002,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                 <input value={ed.specialty ?? s.specialty} onChange={(e) => setEditStaffData({ ...ed, specialty: e.target.value })} className={inputCls} />
                               </div>
                               <div>
-                                <label className={labelCls}>Entrada</label>
+                                <label className={labelCls}>Tel/WhatsApp</label>
+                                <input value={ed.phone ?? ''} onChange={(e) => setEditStaffData({ ...ed, phone: e.target.value })} placeholder="5215512345678" className={inputCls} />
                                 <input type="time" value={ed.shift_start ?? s.shift_start} onChange={(e) => setEditStaffData({ ...ed, shift_start: e.target.value })} className={inputCls} />
                               </div>
                               <div>
@@ -982,7 +1059,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         {!isEditing && (
                           <div className="flex items-center gap-2 shrink-0">
                             <button
-                              onClick={() => { setEditingStaffId(s.id); setEditStaffData({ name: s.name, specialty: s.specialty, shift_start: s.shift_start, shift_end: s.shift_end, service_ids: (s as Staff & { service_ids?: string[] }).service_ids ?? [] }); }}
+                              onClick={() => { setEditingStaffId(s.id); setEditStaffData({ name: s.name, specialty: s.specialty, phone: (s as any).phone ?? '', shift_start: s.shift_start, shift_end: s.shift_end, service_ids: (s as Staff & { service_ids?: string[] }).service_ids ?? [] }); }}
                               className="text-gray-400 hover:text-[#C9A000] transition-colors p-1.5 rounded-lg hover:bg-[#FFFBE6]"
                             >
                               <Edit2 size={15} />
@@ -1443,6 +1520,96 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ===== BEAUTY PRODUCTS ===== */}
+          {tab === 'beauty' && (
+            <div className="space-y-6">
+              <input ref={productInputRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleProductImageUpload(f); }}
+              />
+
+              {showProductForm ? (
+                <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-4 shadow-sm max-w-2xl">
+                  <div className="flex items-center justify-between">
+                    <p className="text-gray-900 font-medium text-sm">{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</p>
+                    <button onClick={() => { setShowProductForm(false); setEditingProduct(null); setProductForm({ title: '', description: '', product_type: '', brand: '', image_url: '', price: '0' }); }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Título *</label>
+                    <input value={productForm.title} onChange={(e) => setProductForm({ ...productForm, title: e.target.value })} className={inputCls} placeholder="Ej: Labial mate rojo" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Tipo de producto</label>
+                      <input value={productForm.product_type} onChange={(e) => setProductForm({ ...productForm, product_type: e.target.value })} className={inputCls} placeholder="Ej: Labial" />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Marca</label>
+                      <input value={productForm.brand} onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })} className={inputCls} placeholder="Ej: MAC" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Descripción</label>
+                    <textarea value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} className={`${inputCls} min-h-[80px]`} placeholder="Descripción del producto..." />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Precio (MXN)</label>
+                    <input type="number" value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} className={`${inputCls} max-w-[160px]`} min={0} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Imagen</label>
+                    <div className="flex items-center gap-3">
+                      {productForm.image_url && <img src={productForm.image_url} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />}
+                      <button onClick={() => productInputRef.current?.click()} disabled={uploadingProduct} className="bg-[#FBFBF9] border border-gray-200 hover:border-[#111111] text-gray-600 text-sm font-medium px-4 py-2 rounded-none flex items-center gap-2">
+                        {uploadingProduct ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                        {uploadingProduct ? 'Subiendo...' : 'Subir imagen'}
+                      </button>
+                    </div>
+                  </div>
+                  <button onClick={saveProduct} disabled={!productForm.title.trim()} className="bg-black hover:bg-neutral-800 disabled:opacity-40 text-white text-sm font-semibold px-5 py-2.5 rounded-none flex items-center gap-2">
+                    <Save size={14} /> {editingProduct ? 'Guardar cambios' : 'Crear producto'}
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => { setEditingProduct(null); setProductForm({ title: '', description: '', product_type: '', brand: '', image_url: '', price: '0' }); setShowProductForm(true); }} className="bg-black hover:bg-neutral-800 text-white text-sm font-semibold px-5 py-2.5 rounded-none flex items-center gap-2">
+                  <Plus size={16} /> Nuevo producto
+                </button>
+              )}
+
+              {beautyProducts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <ShoppingBag size={48} className="text-gray-200 mb-4" />
+                  <p className="text-gray-500">No hay productos aún</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {beautyProducts.map((p) => (
+                    <div key={p.id} className={`bg-[#FBFBF9] border rounded-xl overflow-hidden shadow-sm ${p.is_active ? 'border-gray-200' : 'border-red-200'}`}>
+                      {p.image_url && (
+                        <div className="aspect-[4/3] bg-gray-100">
+                          <img src={p.image_url} alt={p.title} className={`w-full h-full object-cover ${p.is_active ? '' : 'opacity-40'}`} />
+                        </div>
+                      )}
+                      <div className="p-4 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-gray-900 font-medium text-sm">{p.title}</p>
+                          {p.price > 0 && <span className="text-xs text-gray-500 shrink-0">${p.price.toLocaleString()}</span>}
+                        </div>
+                        {p.product_type && <p className="text-xs text-[#8B7355]">{p.product_type}</p>}
+                        {p.brand && <p className="text-xs text-gray-400">{p.brand}</p>}
+                        {p.description && <p className="text-xs text-gray-500 line-clamp-2">{p.description}</p>}
+                        <div className="flex items-center gap-2 pt-2">
+                          <button onClick={() => startEditProduct(p)} className="text-xs font-medium text-gray-600 hover:text-[#111111] border border-gray-200 px-3 py-1.5 rounded">Editar</button>
+                          <button onClick={() => toggleProduct(p)} className={`text-xs font-semibold py-1.5 px-3 rounded border ${p.is_active ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{p.is_active ? 'Visible' : 'Oculta'}</button>
+                          <button onClick={() => deleteProduct(p.id)} className="text-gray-400 hover:text-red-500 p-1.5"><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

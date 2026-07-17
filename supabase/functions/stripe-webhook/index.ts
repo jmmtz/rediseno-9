@@ -63,6 +63,17 @@ async function handleEvent(event: Stripe.Event) {
         console.error('Error confirming appointment:', apptErr);
       } else {
         console.info(`Appointment ${appointmentId} confirmed via Stripe`);
+        // Trigger WhatsApp messages (confirmation + staff notification + schedule reminder)
+        try {
+          const whatsappUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whatsapp-messages`;
+          await fetch(whatsappUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+            body: JSON.stringify({ action: 'send_appointment_messages', appointment_id: appointmentId }),
+          });
+        } catch (waErr) {
+          console.error('WhatsApp message trigger failed:', waErr);
+        }
       }
 
       // Increment coupon used_count if applicable
