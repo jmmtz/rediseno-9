@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Clock, Home, CreditCard as Edit2, Save, Upload, Database, Image, ShoppingBag } from 'lucide-react';
+import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Home, CreditCard as Edit2, Save, Upload, Database, Image, ShoppingBag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Appointment, Staff, Service, Coupon, Promotion, TrafficMode } from '../../types';
 import AppointmentModal from './AppointmentModal';
 
-type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery' | 'beauty';
+type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery' | 'beauty' | 'slideshow';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -77,6 +77,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // Gallery state
   interface GalleryPhoto { id: string; url: string; display_order: number; is_active: boolean; category: string; }
   const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
+
+  // Slideshow state
+  interface SlidePhoto { id: string; url: string; display_order: number; is_active: boolean; }
+  const [slidePhotos, setSlidePhotos] = useState<SlidePhoto[]>([]);
+  const [newSlideUrl, setNewSlideUrl] = useState('');
+  const slideInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingSlide, setUploadingSlide] = useState(false);
   const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [newPhotoCategory, setNewPhotoCategory] = useState('general');
   const [uploadCategory, setUploadCategory] = useState('general');
@@ -144,6 +151,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
     const { data: bData } = await supabase.from('beauty_products').select('*').order('display_order', { ascending: true });
     if (bData) setBeautyProducts(bData);
+
+    const { data: sData } = await supabase.from('slideshow_photos').select('*').order('display_order', { ascending: true });
+    if (sData) setSlidePhotos(sData as SlidePhoto[]);
   }, []);
 
   const autoComplete = useCallback(async () => {
@@ -286,6 +296,52 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     setGalleryPhotos((prev) => prev.filter((p) => p.id !== id));
   }
 
+  // ─── Slideshow CRUD ───────────────────────────────────────────────────
+  async function addSlideByUrl() {
+    if (!newSlideUrl.trim()) return;
+    const maxOrder = slidePhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
+    const { data } = await supabase.from('slideshow_photos').insert({ url: newSlideUrl.trim(), display_order: maxOrder + 1, is_active: true }).select().single();
+    if (data) setSlidePhotos((prev) => [...prev, data as SlidePhoto]);
+    setNewSlideUrl('');
+  }
+
+  async function handleSlideUpload(file: File) {
+    setUploadingSlide(true);
+    const path = `slideshow/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from('gallery').upload(path, file, { upsert: true });
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(path);
+      const maxOrder = slidePhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
+      const { data: newSlide } = await supabase.from('slideshow_photos').insert({ url: urlData.publicUrl, display_order: maxOrder + 1, is_active: true }).select().single();
+      if (newSlide) setSlidePhotos((prev) => [...prev, newSlide as SlidePhoto]);
+    }
+    setUploadingSlide(false);
+  }
+
+  async function toggleSlide(slide: SlidePhoto) {
+    await supabase.from('slideshow_photos').update({ is_active: !slide.is_active }).eq('id', slide.id);
+    setSlidePhotos((prev) => prev.map((p) => p.id === slide.id ? { ...p, is_active: !p.is_active } : p));
+  }
+
+  async function deleteSlide(id: string) {
+    await supabase.from('slideshow_photos').delete().eq('id', id);
+    setSlidePhotos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function moveSlide(id: string, direction: 'up' | 'down') {
+    const idx = slidePhotos.findIndex((p) => p.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= slidePhotos.length) return;
+    const updated = [...slidePhotos];
+    const tmpOrder = updated[idx].display_order;
+    updated[idx] = { ...updated[idx], display_order: updated[swapIdx].display_order };
+    updated[swapIdx] = { ...updated[swapIdx], display_order: tmpOrder };
+    [updated[idx], updated[swapIdx]] = [updated[swapIdx], updated[idx]];
+    setSlidePhotos(updated);
+    await supabase.from('slideshow_photos').update({ display_order: updated[idx].display_order }).eq('id', updated[idx].id);
+    await supabase.from('slideshow_photos').update({ display_order: updated[swapIdx].display_order }).eq('id', updated[swapIdx].id);
+  }
+
   // ─── Beauty Products CRUD ─────────────────────────────────────────────
   async function loadBeautyProducts() {
     const { data } = await supabase.from('beauty_products').select('*').order('display_order', { ascending: true });
@@ -350,8 +406,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   async function moveGalleryPhoto(id: string, direction: 'up' | 'down') {
     const idx = galleryPhotos.findIndex((p) => p.id === id);
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= galleryPhotos.length) return;
+    const photo = galleryPhotos[idx];
+    const cat = photo.category || 'general';
+    // Find previous/next photo in the same category
+    let swapIdx = -1;
+    if (direction === 'up') {
+      for (let i = idx - 1; i >= 0; i--) {
+        if ((galleryPhotos[i].category || 'general') === cat) { swapIdx = i; break; }
+      }
+    } else {
+      for (let i = idx + 1; i < galleryPhotos.length; i++) {
+        if ((galleryPhotos[i].category || 'general') === cat) { swapIdx = i; break; }
+      }
+    }
+    if (swapIdx === -1) return;
     const updated = [...galleryPhotos];
     const tmpOrder = updated[idx].display_order;
     updated[idx] = { ...updated[idx], display_order: updated[swapIdx].display_order };
@@ -506,6 +574,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { key: 'staff', icon: <Users size={18} />, label: 'Personal' },
     { key: 'services', icon: <TrendingUp size={18} />, label: 'Servicios' },
     { key: 'gallery', icon: <Image size={18} />, label: 'Galería' },
+    { key: 'slideshow', icon: <Image size={18} />, label: 'Slideshow' },
     { key: 'beauty', icon: <ShoppingBag size={18} />, label: 'Beauty' },
     { key: 'coupons', icon: <Tag size={18} />, label: 'Cupones' },
     { key: 'promos', icon: <TrendingUp size={18} />, label: 'Promos' },
@@ -1448,7 +1517,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </div>
 
                     {grouped.map(group => {
-                      const globalStartIdx = galleryPhotos.findIndex(p => (p.category || 'general') === group.category);
                       return (
                         <div key={group.category}>
                           <div className="flex items-center gap-3 mb-3">
@@ -1457,8 +1525,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             <div className="h-px flex-1 bg-[#1a1a1a]/10" />
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {group.photos.map((photo, localIdx) => {
-                              const idx = globalStartIdx + localIdx;
+                            {group.photos.map((photo) => {
+                              const realIdx = galleryPhotos.findIndex((p) => p.id === photo.id);
+                              const cat = photo.category || 'general';
+                              const isFirstInCat = !galleryPhotos.slice(0, realIdx).some((p) => (p.category || 'general') === cat);
+                              const isLastInCat = !galleryPhotos.slice(realIdx + 1).some((p) => (p.category || 'general') === cat);
                               return (
                                 <div key={photo.id} className={`relative group border rounded-xl overflow-hidden flex flex-col ${photo.is_active ? 'border-gray-200' : 'border-red-200'}`}>
                                   <div className="aspect-[3/4] bg-gray-100 relative">
@@ -1471,12 +1542,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                     <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/50 transition-all duration-300 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                                       <button
                                         onClick={() => moveGalleryPhoto(photo.id, 'up')}
-                                        disabled={idx === 0}
+                                        disabled={isFirstInCat}
                                         className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
                                       >↑</button>
                                       <button
                                         onClick={() => moveGalleryPhoto(photo.id, 'down')}
-                                        disabled={idx === galleryPhotos.length - 1}
+                                        disabled={isLastInCat}
                                         className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30"
                                       >↓</button>
                                     </div>
@@ -1520,6 +1591,68 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ===== SLIDESHOW ===== */}
+          {tab === 'slideshow' && (
+            <div className="space-y-6">
+              <input ref={slideInputRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleSlideUpload(f); }}
+              />
+              <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-3 shadow-sm">
+                <p className="text-gray-900 font-medium text-sm">Agregar foto al slideshow (página principal)</p>
+                <div className="flex gap-3">
+                  <input
+                    value={newSlideUrl}
+                    onChange={(e) => setNewSlideUrl(e.target.value)}
+                    placeholder="URL de la imagen (ej: /images/foto.jpg)"
+                    className={`${inputCls} flex-1`}
+                  />
+                  <button onClick={addSlideByUrl} className="bg-black hover:bg-neutral-800 text-white text-sm font-semibold px-4 py-2 rounded-none transition-colors flex items-center gap-2 shrink-0">
+                    <Plus size={14} /> Agregar URL
+                  </button>
+                </div>
+                <button
+                  onClick={() => slideInputRef.current?.click()}
+                  disabled={uploadingSlide}
+                  className="bg-[#FBFBF9] border border-gray-200 hover:border-[#111111] text-gray-600 text-sm font-medium px-4 py-2 rounded-none transition-colors flex items-center gap-2"
+                >
+                  {uploadingSlide ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {uploadingSlide ? 'Subiendo...' : 'Subir desde dispositivo'}
+                </button>
+              </div>
+
+              {slidePhotos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Image size={48} className="text-gray-200 mb-4" />
+                  <p className="text-gray-500">No hay fotos en el slideshow</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {slidePhotos.map((slide, i) => (
+                    <div key={slide.id} className={`relative group border rounded-xl overflow-hidden flex flex-col ${slide.is_active ? 'border-gray-200' : 'border-red-200'}`}>
+                      <div className="aspect-[3/4] bg-gray-100 relative">
+                        <img
+                          src={slide.url}
+                          alt=""
+                          className={`w-full h-full object-cover object-top transition-opacity duration-200 ${slide.is_active ? '' : 'opacity-40'}`}
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/50 transition-all duration-300 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                          <button onClick={() => moveSlide(slide.id, 'up')} disabled={i === 0} className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30">↑</button>
+                          <button onClick={() => moveSlide(slide.id, 'down')} disabled={i === slidePhotos.length - 1} className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-30">↓</button>
+                        </div>
+                        <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">#{slide.display_order}</div>
+                      </div>
+                      <div className="flex items-center gap-1 p-2 bg-white border-t border-gray-100">
+                        <button onClick={() => toggleSlide(slide)} className={`text-xs font-semibold py-1.5 px-2 rounded border transition-colors flex-1 ${slide.is_active ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-700' : 'bg-red-50 border-red-200 text-red-700 hover:bg-green-50 hover:border-green-200 hover:text-green-700'}`}>{slide.is_active ? 'On' : 'Off'}</button>
+                        <button onClick={() => deleteSlide(slide.id)} className="text-gray-400 hover:text-red-500 p-1.5 rounded border border-transparent hover:border-red-200 hover:bg-red-50 transition-colors" title="Eliminar"><Trash2 size={13} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

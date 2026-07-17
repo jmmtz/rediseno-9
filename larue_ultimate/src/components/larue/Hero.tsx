@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
-const SLIDES = [
+interface SlidePhoto {
+  id: string;
+  url: string;
+  display_order: number;
+}
+
+const FALLBACK_SLIDES = [
   '/images/0108ffd1-3140-48e8-994e-cd5cf422e400.JPG',
   '/images/abd52b7c-de27-4c79-a38c-301c8e31d609.JPG',
   '/images/e3cacf9c-255d-45d6-8a06-c9241bb86726.JPG',
@@ -18,28 +25,42 @@ interface HeroProps {
 }
 
 export default function Hero({ onBookClick }: HeroProps) {
+  const [slides, setSlides] = useState<string[]>(FALLBACK_SLIDES);
   const [current, setCurrent] = useState(0);
   const [prev, setPrev] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
 
   useEffect(() => {
+    supabase
+      .from('slideshow_photos')
+      .select('id, url, display_order')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setSlides((data as SlidePhoto[]).map((p) => p.url));
+        }
+      });
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setPrev(current);
       setTransitioning(true);
-      setCurrent(c => (c + 1) % SLIDES.length);
+      setCurrent(c => (c + 1) % slides.length);
       setTimeout(() => {
         setPrev(null);
         setTransitioning(false);
       }, 1400);
     }, INTERVAL);
     return () => clearInterval(timer);
-  }, [current]);
+  }, [current, slides.length]);
 
   return (
     <section id="inicio" className="relative h-screen min-h-[700px] flex overflow-hidden">
 
       {/* Slideshow backgrounds */}
-      {SLIDES.map((src, i) => (
+      {slides.map((src, i) => (
         <div
           key={src}
           className="absolute inset-0 transition-opacity duration-[1400ms] ease-in-out"
@@ -100,7 +121,7 @@ export default function Hero({ onBookClick }: HeroProps) {
 
         {/* Slide dots */}
         <div className="absolute bottom-16 flex gap-2">
-          {SLIDES.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               onClick={() => { setPrev(current); setTransitioning(true); setCurrent(i); setTimeout(() => { setPrev(null); setTransitioning(false); }, 1400); }}

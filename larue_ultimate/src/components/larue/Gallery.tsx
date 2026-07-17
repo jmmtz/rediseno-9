@@ -9,19 +9,7 @@ interface GalleryPhoto {
   category: string;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  coloracion: 'Coloración',
-  corte: 'Corte',
-  depilacion: 'Depilación Facial',
-  tratamientos: 'Tratamientos Capilares',
-  maquillaje: 'Maquillaje y Peinado',
-  manos_pies: 'Manos y Pies',
-  faciales: 'Faciales y Bienestar',
-  general: 'Galería',
-};
-
-const CATEGORY_ORDER = ['coloracion', 'corte', 'depilacion', 'tratamientos', 'maquillaje', 'manos_pies', 'faciales', 'general'];
-const MAX_PHOTOS_PER_SECTION = 4;
+const MAX_PHOTOS = 4;
 
 function useScrollReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -50,16 +38,8 @@ export default function Gallery() {
       .select('id, url, display_order, category')
       .eq('is_active', true)
       .order('display_order', { ascending: true })
-      .then(({ data }) => { if (data) setPhotos(data as GalleryPhoto[]); });
+      .then(({ data }) => { if (data) setPhotos((data as GalleryPhoto[]).slice(0, MAX_PHOTOS)); });
   }, []);
-
-  const grouped = CATEGORY_ORDER
-    .map((cat) => ({
-      category: cat,
-      label: CATEGORY_LABELS[cat] || cat,
-      photos: photos.filter((p) => (p.category || 'general') === cat).slice(0, MAX_PHOTOS_PER_SECTION),
-    }))
-    .filter((g) => g.photos.length > 0);
 
   return (
     <section id="galeria" className="py-24 lg:py-36 bg-[#F5F2EE]">
@@ -86,52 +66,31 @@ export default function Gallery() {
           </p>
         </div>
 
-        {/* Grouped gallery sections */}
-        {grouped.map((group, gi) => {
-          const withSpan = group.photos.map((p, i) => ({
-            ...p,
-            span: (i === 0 || i === 3) ? 'row-span-2' : '',
-          }));
-
-          return (
-            <div key={group.category} className={gi > 0 ? 'mt-16' : ''}>
-              {/* Section divider — only for non-general categories */}
-              {group.category !== 'general' && (
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="h-px flex-1 bg-[#1a1a1a]/10" />
-                  <h3 className="font-cormorant text-xl lg:text-2xl font-light text-[#1a1a1a] tracking-wide">
-                    {group.label}
-                  </h3>
-                  <div className="h-px flex-1 bg-[#1a1a1a]/10" />
-                </div>
-              )}
-
-              {/* Photo grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[200px] md:auto-rows-[220px] gap-3">
-                {withSpan.map((photo, i) => (
-                  <div
-                    key={photo.id}
-                    className={`overflow-hidden cursor-pointer group relative ${photo.span}`}
-                    style={{
-                      opacity: header.visible ? 1 : 0,
-                      transform: header.visible ? 'translateY(0)' : 'translateY(20px)',
-                      transition: `opacity 0.7s ease-out ${i * 60}ms, transform 0.7s ease-out ${i * 60}ms`,
-                    }}
-                    onClick={() => setLightbox(photo.url)}
-                  >
-                    <img
-                      src={photo.url}
-                      alt={group.label}
-                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/20 transition-all duration-500" />
-                  </div>
-                ))}
+        {/* Photo grid — no divisions, just 4 photos */}
+        {photos.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[200px] md:auto-rows-[220px] gap-3">
+            {photos.map((photo, i) => (
+              <div
+                key={photo.id}
+                className="overflow-hidden cursor-pointer group relative"
+                style={{
+                  opacity: header.visible ? 1 : 0,
+                  transform: header.visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: `opacity 0.7s ease-out ${i * 60}ms, transform 0.7s ease-out ${i * 60}ms`,
+                }}
+                onClick={() => setLightbox(photo.url)}
+              >
+                <img
+                  src={photo.url}
+                  alt="Nuestro trabajo"
+                  className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/20 transition-all duration-500" />
               </div>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Lightbox */}

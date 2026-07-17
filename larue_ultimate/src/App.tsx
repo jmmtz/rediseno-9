@@ -206,7 +206,7 @@ export default function App() {
         } catch {}
       } else {
         // Fallback: show a generic success message
-        setStripeBooking({ client_name: '', service_name: 'tu servicio', appointment_date: '', appointment_time: '', staff_name: '', depositAmount: 0 });
+        setStripeBooking({ client_name: '', client_phone: '', service_name: 'tu servicio', appointment_date: '', appointment_time: '', staff_name: '', depositAmount: 0 });
       }
     }
   }, []);
@@ -239,6 +239,25 @@ export default function App() {
   }
 
   useEffect(() => {
+    // Fallback: resolve auth from existing session in case onAuthStateChange doesn't fire
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (authResolved.current) return;
+      if (session?.user) {
+        resolveUserRole(session.user.id, session.user.email ?? '');
+      } else {
+        authResolved.current = true;
+        setCheckingAuth(false);
+      }
+    });
+
+    // Safety timeout: never hang on the spinner
+    const timeout = setTimeout(() => {
+      if (!authResolved.current) {
+        authResolved.current = true;
+        setCheckingAuth(false);
+      }
+    }, 3000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       (async () => {
         if (session?.user) {
@@ -253,7 +272,7 @@ export default function App() {
         }
       })();
     });
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 
   function handleTabChange(tab: AppTab) {
@@ -279,7 +298,7 @@ export default function App() {
     await supabase.auth.signOut();
     setIsAdmin(false);
     setCustomer(null);
-    setActiveTab('larue');
+    setActiveTab('salon');
   }
 
   if (checkingAuth) {
@@ -303,7 +322,6 @@ export default function App() {
           isAdmin={isAdmin}
           customer={customer}
           onLoginClick={() => { setAuthModalView('login'); setShowAuthModal(true); }}
-          onSignUpClick={() => { setAuthModalView('signup'); setShowAuthModal(true); }}
           onCustomerDashClick={() => setShowCustomerDash(true)}
         />
         <BeautyPage />
@@ -338,7 +356,6 @@ export default function App() {
           isAdmin={isAdmin}
           customer={customer}
           onLoginClick={() => { setAuthModalView('login'); setShowAuthModal(true); }}
-          onSignUpClick={() => { setAuthModalView('signup'); setShowAuthModal(true); }}
           onCustomerDashClick={() => setShowCustomerDash(true)}
         />
         <ArtPage />
@@ -372,7 +389,6 @@ export default function App() {
         isAdmin={isAdmin}
         customer={customer}
         onLoginClick={() => { setAuthModalView('login'); setShowAuthModal(true); }}
-        onSignUpClick={() => { setAuthModalView('signup'); setShowAuthModal(true); }}
         onCustomerDashClick={() => setShowCustomerDash(true)}
       />
 

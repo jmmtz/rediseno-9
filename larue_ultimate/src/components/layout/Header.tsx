@@ -15,7 +15,6 @@ interface HeaderProps {
   isAdmin: boolean;
   customer: CustomerSession | null;
   onLoginClick: () => void;
-  onSignUpClick: () => void;
   onCustomerDashClick: () => void;
 }
 
@@ -25,15 +24,9 @@ const NAV_TABS: { label: string; tab: SectionTab }[] = [
   { label: 'LaRue Art', tab: 'art' },
 ];
 
-const SALON_LINKS = [
-  { label: 'Servicios', id: 'servicios' },
-  { label: 'Galería', id: 'galeria' },
-  { label: 'Citas', id: 'citas' },
-];
-
 export default function Header({
   activeTab, onTabChange,
-  isAdmin, customer, onLoginClick, onSignUpClick, onCustomerDashClick,
+  isAdmin, customer, onLoginClick, onCustomerDashClick,
 }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -102,19 +95,6 @@ export default function Header({
               }`}
             >
               {nav.label}
-            </button>
-          ))}
-
-          {/* Sub-links for salon */}
-          {activeTab === 'salon' && SALON_LINKS.map((link) => (
-            <button
-              key={link.id}
-              onClick={() => scrollTo(link.id)}
-              className={`text-xs tracking-[0.15em] uppercase font-light transition-colors duration-300 ${
-                useDarkText ? 'text-[#1a1a1a]/50 hover:text-[#8B7355]' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              {link.label}
             </button>
           ))}
 
@@ -208,16 +188,6 @@ export default function Header({
               }`}
             >
               {nav.label}
-            </button>
-          ))}
-
-          {activeTab === 'salon' && SALON_LINKS.map((link) => (
-            <button
-              key={link.id}
-              onClick={() => scrollTo(link.id)}
-              className="text-left text-sm tracking-[0.15em] uppercase font-light text-[#1a1a1a]/60 hover:text-[#8B7355] transition-colors pl-4"
-            >
-              {link.label}
             </button>
           ))}
 

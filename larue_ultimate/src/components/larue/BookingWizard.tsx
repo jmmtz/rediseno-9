@@ -128,7 +128,7 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [anyProfessional, setAnyProfessional] = useState(false);
   const [autoAssignedStaff, setAutoAssignedStaff] = useState<Staff | null>(null);
-  const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
+  const [, setBookedSlots] = useState<Set<string>>(new Set());
   const [bookedStaffBySlot, setBookedStaffBySlot] = useState<Record<string, string[]>>({});
 
   const saved = loadSavedClient();
@@ -382,10 +382,6 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
   const canProceedService = selectedService && eligibleStaff.length > 0;
   const canProceedStylist = (anyProfessional || selectedStaff) && availableStaff.length > 0;
   const canProceedInfo = clientName.trim() && clientPhone.trim();
-
-  const finalStaffName = anyProfessional
-    ? (autoAssignedStaff ? `Asignada automáticamente por el salón` : 'Cualquier Profesional')
-    : selectedStaff?.name || 'Cualquier Profesional';
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">

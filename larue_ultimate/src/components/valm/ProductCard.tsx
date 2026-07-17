@@ -11,9 +11,9 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
   const [selectedShade, setSelectedShade] = useState(product.shades[0] || '');
   const [added, setAdded] = useState(false);
 
-  const isOnSale = product.compare_price !== null && product.compare_price > product.price;
-  const discountPercent = isOnSale
-    ? Math.round(((product.compare_price! - product.price) / product.compare_price!) * 100)
+  const isOnSale = product.compare_price != null && product.compare_price > product.price;
+  const discountPercent = isOnSale && product.compare_price != null
+    ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
     : 0;
 
   const handleAdd = () => {

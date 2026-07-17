@@ -16,6 +16,7 @@ export interface Staff {
   shift_start: string;
   shift_end: string;
   days_off: number[];
+  phone: string;
   created_at: string;
 }
 
@@ -92,3 +93,23 @@ export interface Promotion {
 }
 
 export type TrafficMode = 'low' | 'medium' | 'high';
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image_url: string;
+  category: string;
+  is_active: boolean;
+  display_order: number;
+  shades: string[];
+  compare_price?: number;
+  created_at: string;
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+  shade: string;
+}

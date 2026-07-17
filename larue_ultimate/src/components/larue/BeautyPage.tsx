@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Sparkles, ShoppingBag } from 'lucide-react';
 
 export default function BeautyPage() {
@@ -13,7 +12,7 @@ export default function BeautyPage() {
             <Sparkles size={16} className="text-[#8B7355]" />
           </div>
           <h1 className="font-cormorant text-5xl lg:text-7xl font-light text-[#1a1a1a] leading-tight mb-6">
-            Cosmética<br /><em>artesanal</em>
+            Cosmética<br /><em>premium</em>
           </h1>
           <p className="text-sm text-[#5a5a5a] font-light leading-relaxed max-w-md mx-auto mb-10">
             Una colección curada de productos de belleza seleccionados personalmente por nuestro equipo. Próximamente disponible en nuestra tienda en línea.

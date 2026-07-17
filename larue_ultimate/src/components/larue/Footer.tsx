@@ -1,4 +1,4 @@
-import { Instagram, Phone, MapPin, Clock } from 'lucide-react';
+import { Instagram, Facebook, Phone, MapPin, Clock } from 'lucide-react';
 
 export default function Footer() {
   const scrollTo = (id: string) => {
@@ -20,6 +20,10 @@ export default function Footer() {
               <a href="https://instagram.com/la.rue.salon" target="_blank" rel="noreferrer"
                 className="text-[#FAF9F6]/45 hover:text-[#C9A96E] transition-colors duration-300">
                 <Instagram size={18} />
+              </a>
+              <a href="https://facebook.com/la.rue.salon" target="_blank" rel="noreferrer"
+                className="text-[#FAF9F6]/45 hover:text-[#C9A96E] transition-colors duration-300">
+                <Facebook size={18} />
               </a>
               <a href="tel:+528717507681"
                 className="text-[#FAF9F6]/45 hover:text-[#C9A96E] transition-colors duration-300">
