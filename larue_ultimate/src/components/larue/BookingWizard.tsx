@@ -313,13 +313,15 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
     if (!requiresPayment) {
       // No anticipo — guardar cita directamente
       try {
-        const { data: inserted, error } = await supabase.from('appointments').insert({
+        const insertPayload = {
           ...bookingBase,
           status: 'confirmada',
           payment_status: 'pendiente',
           payment_amount: 0,
           payment_intent_id: '',
-        }).select('id').single();
+        };
+        // Usar select solo para recuperar el id; si RLS bloquea el select, la cita aun se inserta.
+        const { data: inserted, error } = await supabase.from('appointments').insert(insertPayload).select('id').maybeSingle();
         if (error) throw error;
         if (appliedCoupon) {
           await supabase.from('coupons').update({ used_count: appliedCoupon.used_count + 1 }).eq('id', appliedCoupon.id);
