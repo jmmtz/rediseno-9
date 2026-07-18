@@ -313,18 +313,24 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
     if (!requiresPayment) {
       // No anticipo — guardar cita directamente
       try {
-        const { error } = await supabase.from('appointments').insert({
+        const { data: inserted, error } = await supabase.from('appointments').insert({
           ...bookingBase,
           status: 'confirmada',
           payment_status: 'pendiente',
           payment_amount: 0,
           payment_intent_id: '',
-        });
+        }).select('id').single();
         if (error) throw error;
         if (appliedCoupon) {
           await supabase.from('coupons').update({ used_count: appliedCoupon.used_count + 1 }).eq('id', appliedCoupon.id);
         }
         saveClientInfo(clientName, clientPhone, clientEmail);
+        // Disparar mensajes de WhatsApp (confirmacion al cliente + notificacion al estilista)
+        if (inserted?.id) {
+          supabase.functions.invoke('whatsapp-messages', {
+            body: { action: 'send_appointment_messages', appointment_id: inserted.id },
+          }).catch(() => {});
+        }
         setStep('confirm');
       } catch {
         setPaymentError('Error al procesar. Intenta de nuevo.');
