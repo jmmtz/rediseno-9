@@ -27,21 +27,25 @@ export default function ClientInfoModal({ clientId, clientName, clientPhone, cli
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!clientId) return;
     (async () => {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', clientId).maybeSingle();
-      if (profile) setClient(profile as ClientDetail);
+      if (clientId) {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', clientId).maybeSingle();
+        if (profile) setClient(profile as ClientDetail);
 
-      const { data: appts } = await supabase.from('appointments').select('*').eq('client_id', clientId).order('appointment_date', { ascending: false });
-      if (appts) setAppointments(appts as Appointment[]);
+        const { data: appts } = await supabase.from('appointments').select('*').eq('client_id', clientId).order('appointment_date', { ascending: false });
+        if (appts) setAppointments(appts as Appointment[]);
 
-      if (profile) {
-        const { data: cps } = await supabase.from('coupons').select('*').or(`service_id.is.null,service_id.eq.${clientId}`).eq('is_active', true);
-        if (cps) setCoupons(cps as Coupon[]);
+        if (profile) {
+          const { data: cps } = await supabase.from('coupons').select('*').or(`service_id.is.null,service_id.eq.${clientId}`).eq('is_active', true);
+          if (cps) setCoupons(cps as Coupon[]);
+        }
+      } else {
+        const { data: appts } = await supabase.from('appointments').select('*').eq('client_phone', clientPhone).order('appointment_date', { ascending: false });
+        if (appts) setAppointments(appts as Appointment[]);
       }
       setLoading(false);
     })();
-  }, [clientId]);
+  }, [clientId, clientPhone]);
 
   const lastVisit = appointments.find(a => a.status === 'completada');
   const lastVisitDate = lastVisit ? new Date(lastVisit.appointment_date) : null;

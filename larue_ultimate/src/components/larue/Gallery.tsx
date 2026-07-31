@@ -10,7 +10,7 @@ interface GalleryPhoto {
   category: string;
 }
 
-const MAX_PHOTOS = 12;
+const MAX_PHOTOS = 4;
 
 function useScrollReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -85,7 +85,7 @@ export default function Gallery() {
                 <img
                   src={photo.url}
                   alt="Nuestro trabajo"
-                  className="w-full h-auto max-h-[320px] object-cover transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-auto max-h-[420px] object-cover transition-transform duration-700 group-hover:scale-105"
                   loading="lazy"
                 />
                 <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/20 transition-all duration-500" />

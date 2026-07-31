@@ -56,6 +56,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [showClientModal, setShowClientModal] = useState(false);
   const [selectedClientInfo, setSelectedClientInfo] = useState<{ name: string; phone: string; email: string }>({ name: '', phone: '', email: '' });
   const [loading, setLoading] = useState(true);
   const [schemaErrors, setSchemaErrors] = useState<string[]>([]);
@@ -540,8 +541,24 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // ─── Promos CRUD ──────────────────────────────────────────────────────
   async function addPromo() {
     if (!newPromo.title) return;
+    const payload = {
+      title: newPromo.title,
+      description: newPromo.description,
+      promo_type: newPromo.promo_type,
+      discount_type: newPromo.discount_type,
+      discount_value: newPromo.discount_value,
+      original_price: newPromo.original_price || 0,
+      promo_price: newPromo.promo_price || 0,
+      service_ids: newPromo.service_ids.length > 0 ? newPromo.service_ids : null,
+      start_date: newPromo.start_date || null,
+      end_date: newPromo.end_date || null,
+      is_active: true,
+      applicable_days: [1,2,3,4,5,6,7],
+      display_badge: true,
+    };
     await supabase.from('promotions').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('promotions').insert({ ...newPromo, is_active: true, applicable_days: [1,2,3,4,5,6,7] });
+    const { error } = await supabase.from('promotions').insert(payload);
+    if (error) alert('Error al crear promo: ' + error.message);
     setNewPromo({ title: '', description: '', promo_type: 'descuento', discount_type: 'percent', discount_value: 0, original_price: 0, promo_price: 0, service_ids: [], start_date: '', end_date: '' });
     loadData();
   }
@@ -2022,7 +2039,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                               <Edit2 size={15} />
                             </button>
                             <button
-                              onClick={() => { setSelectedClientId(c.id ?? null); setSelectedClientInfo({ name: c.name, phone: c.phone, email: c.email }); }}
+                              onClick={() => { setSelectedClientId(c.id ?? null); setSelectedClientInfo({ name: c.name, phone: c.phone, email: c.email }); setShowClientModal(true); }}
                               className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50 shrink-0"
                               title="Ver info completa"
                             >
@@ -2049,14 +2066,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         />
       )}
 
-      {selectedClientId && (
+      {showClientModal && (
         <ClientInfoModal
           clientId={selectedClientId}
           clientName={selectedClientInfo.name}
           clientPhone={selectedClientInfo.phone}
           clientEmail={selectedClientInfo.email}
           services={services}
-          onClose={() => setSelectedClientId(null)}
+          onClose={() => { setShowClientModal(false); setSelectedClientId(null); }}
         />
       )}
 
