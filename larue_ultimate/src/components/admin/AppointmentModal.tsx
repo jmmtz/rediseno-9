@@ -47,6 +47,22 @@ export default function AppointmentModal({ appointment, staff, onClose, onRefres
     setLoading(false);
   }
 
+  async function resetToPending() {
+    setLoading(true);
+    await supabase.from('appointments').update({ status: 'pendiente', updated_at: new Date().toISOString() }).eq('id', appointment.id);
+    onRefresh();
+    onClose();
+    setLoading(false);
+  }
+
+  async function markConfirmed() {
+    setLoading(true);
+    await supabase.from('appointments').update({ status: 'confirmada', updated_at: new Date().toISOString() }).eq('id', appointment.id);
+    onRefresh();
+    onClose();
+    setLoading(false);
+  }
+
   async function cancelAppointment() {
     setLoading(true);
     await supabase.from('appointments').update({
@@ -98,59 +114,85 @@ export default function AppointmentModal({ appointment, staff, onClose, onRefres
             )}
           </div>
 
-          {view === 'main' && appointment.status === 'confirmada' && (
+          {view === 'main' && (appointment.status === 'confirmada' || appointment.status === 'completada' || appointment.status === 'no_show' || appointment.status === 'pendiente') && (
             <>
               {/* Reassign staff */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Cambiar Especialista</label>
-                <div className="flex gap-2">
-                  <select
-                    value={newStaffId}
-                    onChange={(e) => setNewStaffId(e.target.value)}
-                    className={`flex-1 ${inputCls}`}
-                  >
-                    <option value="">Cualquier Profesional</option>
-                    {staff.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={reassignStaff}
-                    disabled={loading}
-                    className="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-2 rounded-none transition-colors flex items-center gap-1.5"
-                  >
-                    <UserCheck size={14} />
-                    Asignar
-                  </button>
+              {(appointment.status === 'confirmada' || appointment.status === 'pendiente') && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Cambiar Especialista</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={newStaffId}
+                      onChange={(e) => setNewStaffId(e.target.value)}
+                      className={`flex-1 ${inputCls}`}
+                    >
+                      <option value="">Cualquier Profesional</option>
+                      {staff.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={reassignStaff}
+                      disabled={loading}
+                      className="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-2 rounded-none transition-colors flex items-center gap-1.5"
+                    >
+                      <UserCheck size={14} />
+                      Asignar
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Action buttons */}
-              <div className="grid grid-cols-2 gap-3">
+              {appointment.status === 'pendiente' && (
                 <button
-                  onClick={markComplete}
+                  onClick={markConfirmed}
                   disabled={loading}
-                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
                 >
                   <UserCheck size={16} />
-                  Completada
+                  Confirmar Cita
                 </button>
+              )}
+              {(appointment.status === 'confirmada' || appointment.status === 'pendiente') && (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={markComplete}
+                    disabled={loading}
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UserCheck size={16} />
+                    Completada
+                  </button>
+                  <button
+                    onClick={markNoShow}
+                    disabled={loading}
+                    className="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <AlertTriangle size={16} />
+                    No Show
+                  </button>
+                </div>
+              )}
+              {(appointment.status === 'completada' || appointment.status === 'no_show') && (
                 <button
-                  onClick={markNoShow}
+                  onClick={resetToPending}
                   disabled={loading}
-                  className="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
                 >
                   <AlertTriangle size={16} />
-                  No Show
+                  Re-abrir (editar status)
                 </button>
-              </div>
-              <button
-                onClick={() => setView('cancel')}
-                className="w-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                <XCircle size={16} />
-                Cancelar Cita
-              </button>
+              )}
+              {(appointment.status as string) !== 'cancelada' && (
+                <button
+                  onClick={() => setView('cancel')}
+                  className="w-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <XCircle size={16} />
+                  Cancelar Cita
+                </button>
+              )}
             </>
           )}
 

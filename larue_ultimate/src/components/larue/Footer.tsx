@@ -1,9 +1,11 @@
 import { Instagram, Facebook, Phone, MapPin, Clock } from 'lucide-react';
+import { useSiteContent, CONTENT_DEFAULTS } from '../../lib/useSiteContent';
 
 export default function Footer() {
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
+  const { getText } = useSiteContent();
 
   return (
     <footer className="bg-[#1a1a1a] text-[#FAF9F6] py-16">
@@ -14,7 +16,7 @@ export default function Footer() {
           <div className="md:col-span-2">
             <img src="/images/logos-buenos-negro.png" alt="La Rue" className="h-12 w-auto object-contain mb-6" />
             <p className="text-sm text-[#FAF9F6]/55 font-light leading-relaxed max-w-sm">
-              Un refugio de belleza y bienestar donde cada detalle está pensado para ofrecerte una experiencia sin igual. Lujo silencioso, cuidado genuino.
+              {getText('footer_about', CONTENT_DEFAULTS.footer_about)}
             </p>
             <div className="flex items-center gap-5 mt-8">
               <a href="https://instagram.com/la.rue.salon" target="_blank" rel="noreferrer"

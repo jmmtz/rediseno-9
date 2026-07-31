@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useSiteContent, CONTENT_DEFAULTS } from '../../lib/useSiteContent';
 
 interface SlidePhoto {
   id: string;
@@ -29,6 +30,7 @@ export default function Hero({ onBookClick }: HeroProps) {
   const [current, setCurrent] = useState(0);
   const [prev, setPrev] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const { getText } = useSiteContent();
 
   useEffect(() => {
     supabase
@@ -86,10 +88,6 @@ export default function Hero({ onBookClick }: HeroProps) {
       {/* Content */}
       <div className="relative flex flex-col items-center justify-center text-center px-6 w-full" style={{ zIndex: 4 }}>
 
-        <p className="animate-fade-in-up animation-delay-200 text-[#C9A96E] text-xs tracking-[0.4em] uppercase font-medium mb-10">
-          Torreón, Coahuila
-        </p>
-
         {/* Logo */}
         <div className="animate-fade-in-up animation-delay-400 mb-10">
           <img
@@ -100,7 +98,7 @@ export default function Hero({ onBookClick }: HeroProps) {
         </div>
 
         <p className="animate-fade-in-up animation-delay-600 text-white/60 text-sm md:text-base font-light max-w-md leading-relaxed mb-12">
-          Salon & Spa de lujo en Torreón. Cabello, maquillaje, faciales y bienestar en un solo lugar.
+          {getText('hero_subtitle', CONTENT_DEFAULTS.hero_subtitle)}
         </p>
 
         <div className="animate-fade-in-up animation-delay-600 flex flex-col sm:flex-row gap-4 items-center">

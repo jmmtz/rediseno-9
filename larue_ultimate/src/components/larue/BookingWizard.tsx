@@ -218,7 +218,7 @@ export default function BookingWizard({ onClose, preselectedService, customerSes
 
   const getDepositAmount = () => {
     if (effectiveTraffic === 'high') return servicePrice;
-    if (effectiveTraffic === 'medium') return trafficFee;
+    if (effectiveTraffic === 'medium') return Math.min(trafficFee, servicePrice);
     return 0;
   };
 

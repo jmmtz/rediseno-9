@@ -10,6 +10,7 @@ interface AuthModalProps {
 
 export default function AuthModal({ initialView = 'login', onClose, onAuthSuccess }: AuthModalProps) {
   const [view, setView] = useState<'login' | 'signup'>(initialView);
+  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -65,15 +66,25 @@ export default function AuthModal({ initialView = 'login', onClose, onAuthSucces
     setLoading(true);
     setError('');
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    let loginEmail = email;
+    if (loginMethod === 'phone' && phone) {
+      const { data: profile } = await supabase.from('profiles').select('email').eq('phone', phone).maybeSingle();
+      if (!profile?.email) {
+        setError('No se encontró una cuenta con ese teléfono.');
+        setLoading(false);
+        return;
+      }
+      loginEmail = profile.email;
+    }
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
 
     if (authError || !data.user) {
-      setError(authError?.message || 'Correo o contraseña incorrectos.');
+      setError(authError?.message || (loginMethod === 'phone' ? 'Teléfono o contraseña incorrectos.' : 'Correo o contraseña incorrectos.'));
       setLoading(false);
       return;
     }
 
-    // Role resolution and redirect handled by onAuthStateChange in App.tsx
     onAuthSuccess('customer');
     setLoading(false);
   }
@@ -112,18 +123,28 @@ export default function AuthModal({ initialView = 'login', onClose, onAuthSucces
         <div className="px-6 pb-6">
           {view === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4">
+              {/* Login method toggle */}
+              <div className="flex gap-2 bg-gray-100 rounded-xl p-1">
+                <button type="button" onClick={() => { setLoginMethod('email'); setError(''); }}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${loginMethod === 'email' ? 'bg-[#FBFBF9] text-gray-900 shadow-sm' : 'text-gray-500'}`}>
+                  Correo
+                </button>
+                <button type="button" onClick={() => { setLoginMethod('phone'); setError(''); }}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${loginMethod === 'phone' ? 'bg-[#FBFBF9] text-gray-900 shadow-sm' : 'text-gray-500'}`}>
+                  Teléfono
+                </button>
+              </div>
+              {loginMethod === 'email' ? (
               <div>
                 <label className="block text-xs text-gray-500 font-medium mb-1.5">Correo electrónico</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@correo.com"
-                  className={inputCls}
-                  required
-                  autoComplete="email"
-                />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" className={inputCls} required autoComplete="email" />
               </div>
+              ) : (
+              <div>
+                <label className="block text-xs text-gray-500 font-medium mb-1.5">Teléfono</label>
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(871) 000-0000" className={inputCls} required autoComplete="tel" />
+              </div>
+              )}
               <div>
                 <label className="block text-xs text-gray-500 font-medium mb-1.5">Contraseña</label>
                 <div className="relative">
@@ -235,6 +256,13 @@ export default function AuthModal({ initialView = 'login', onClose, onAuthSucces
                   <span>{error}</span>
                 </div>
               )}
+
+              {/* Change contact message */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <span>¿Cambiaste tu número o correo? Contáctanos directamente al salón para actualizar tus datos.</span>
+              </div>
+
               {success && (
                 <div className="flex items-center gap-2 text-green-700 text-sm bg-green-50 border border-green-200 rounded-xl p-3">
                   <CheckCircle size={15} className="shrink-0" />

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, Scissors, Sparkles, Hand, Heart, Palette, Star, Droplets } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { Service } from '../../types';
+import { useSiteContent, CONTENT_DEFAULTS } from '../../lib/useSiteContent';
+import type { Service, Promotion } from '../../types';
 
 interface MediaItem {
   type: 'image' | 'video';
@@ -131,10 +132,15 @@ export default function Services({ onBookService }: ServicesProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const header = useScrollReveal();
+  const { getText } = useSiteContent();
+  const [activePromo, setActivePromo] = useState<Promotion | null>(null);
 
   useEffect(() => {
     supabase.from('services').select('*').eq('is_active', true).then(({ data }) => {
       if (data) setServices(data);
+    });
+    supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(1).then(({ data }) => {
+      if (data && data.length > 0) setActivePromo(data[0] as Promotion);
     });
   }, []);
 
@@ -156,9 +162,9 @@ export default function Services({ onBookService }: ServicesProps) {
             transition: 'opacity 0.8s ease-out, transform 0.8s ease-out',
           }}
         >
-          <p className="text-xs tracking-[0.35em] uppercase text-[#8B7355] font-medium mb-4">Nuestros Servicios</p>
+          <p className="text-xs tracking-[0.35em] uppercase text-[#8B7355] font-medium mb-4">{getText('services_eyebrow', CONTENT_DEFAULTS.services_eyebrow)}</p>
           <h2 className="font-cormorant text-4xl lg:text-6xl font-light text-[#1a1a1a] leading-tight max-w-xl">
-            El arte de la<br /><em>belleza auténtica</em>
+            {getText('services_title', CONTENT_DEFAULTS.services_title)}<br /><em>{getText('services_title_em', CONTENT_DEFAULTS.services_title_em)}</em>
           </h2>
           {/* Premium guarantee — subtle */}
           <div className="flex items-center gap-3 mt-5">
@@ -220,7 +226,7 @@ export default function Services({ onBookService }: ServicesProps) {
                               <p className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium mb-2">{sub.label}</p>
                               <div className="space-y-2">
                                 {subServices.map((svc) => (
-                                  <ServiceButton key={svc.id} service={svc} onBook={onBookService} />
+                                  <ServiceButton key={svc.id} service={svc} onBook={onBookService} promo={activePromo} />
                                 ))}
                               </div>
                             </div>
@@ -229,7 +235,7 @@ export default function Services({ onBookService }: ServicesProps) {
                       ) : (
                         <div className="space-y-2">
                           {groupServices.map((svc) => (
-                            <ServiceButton key={svc.id} service={svc} onBook={onBookService} />
+                            <ServiceButton key={svc.id} service={svc} onBook={onBookService} promo={activePromo} />
                           ))}
                         </div>
                       )}
@@ -270,12 +276,16 @@ export default function Services({ onBookService }: ServicesProps) {
   );
 }
 
-function ServiceButton({ service, onBook }: { service: Service; onBook: (s: Service) => void }) {
-  const priceLabel = service.price_min > 0
-    ? (service.price_max > service.price_min
-        ? `$${service.price_min.toLocaleString()}–$${service.price_max.toLocaleString()}`
-        : `$${service.price_min.toLocaleString()}`)
-    : null;
+function ServiceButton({ service, onBook, promo }: { service: Service; onBook: (s: Service) => void; promo: Promotion | null }) {
+  const hasPromo = promo && promo.promo_type === 'descuento' && promo.service_ids?.includes(service.id);
+  const originalPrice = service.price_min > 0 ? (service.price_max > service.price_min ? `${service.price_min.toLocaleString()}–${service.price_max.toLocaleString()}` : `${service.price_min.toLocaleString()}`) : null;
+  const discountedPrice = hasPromo && service.price_min > 0 ? (() => {
+    if (promo!.discount_type === 'percent') {
+      const disc = service.price_min * (promo!.discount_value / 100);
+      return `${Math.round(service.price_min - disc).toLocaleString()}`;
+    }
+    return `${Math.max(0, service.price_min - promo!.discount_value).toLocaleString()}`;
+  })() : null;
 
   return (
     <button
@@ -286,10 +296,13 @@ function ServiceButton({ service, onBook }: { service: Service; onBook: (s: Serv
         {service.name}
       </span>
       <div className="flex items-center gap-3 shrink-0">
-        {priceLabel && (
-          <span className="text-xs text-[#5a5a5a] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
-            {priceLabel}
-          </span>
+        {hasPromo && originalPrice && discountedPrice ? (
+          <div className="flex flex-col items-end">
+            <span className="text-xs text-[#5a5a5a] line-through group-hover/svc:text-[#FAF9F6]/40 transition-colors duration-200">{originalPrice}</span>
+            <span className="text-xs text-[#C9A96E] font-bold group-hover/svc:text-[#C9A96E] transition-colors duration-200">{discountedPrice}</span>
+          </div>
+        ) : (
+          originalPrice && <span className="text-xs text-[#5a5a5a] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">{originalPrice}</span>
         )}
         <span className="text-xs tracking-[0.15em] uppercase text-[#8B7355] group-hover/svc:text-[#FAF9F6]/60 transition-colors duration-200">
           Reservar

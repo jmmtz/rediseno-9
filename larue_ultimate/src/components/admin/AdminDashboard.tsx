@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Calendar, Users, Settings, Tag, BarChart3, LogOut, RefreshCw, Zap, ChevronDown, Plus, Trash2, Check, X, TrendingUp, Home, CreditCard as Edit2, Save, Upload, Database, Image, ShoppingBag } from 'lucide-react';
+import type { SiteContentEntry } from '../../lib/useSiteContent';
 import { supabase } from '../../lib/supabase';
 import type { Appointment, Staff, Service, Coupon, Promotion, TrafficMode } from '../../types';
 import AppointmentModal from './AppointmentModal';
+import ClientInfoModal from './ClientInfoModal';
+import CouponTargeting from './CouponTargeting';
 
-type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery' | 'beauty' | 'slideshow';
+type AdminTab = 'calendar' | 'stylist_view' | 'staff' | 'services' | 'coupons' | 'promos' | 'settings' | 'reportes' | 'clients' | 'gallery' | 'beauty' | 'slideshow' | 'content';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -24,6 +27,20 @@ const TIME_SLOTS = Array.from({ length: 22 }, (_, i) => {
   return `${String(h).padStart(2, '0')}:${m}`;
 });
 
+const SERVICE_CATEGORIES = [
+  { value: 'corte', label: 'Corte' },
+  { value: 'depilacion', label: 'Depilación Facial' },
+  { value: 'tratamiento_hidratante', label: 'Tratamiento Hidratante' },
+  { value: 'tratamiento_alisado', label: 'Tratamiento Alisado' },
+  { value: 'maquillaje', label: 'Maquillaje' },
+  { value: 'peinado', label: 'Peinado' },
+  { value: 'manos_pies', label: 'Manos y Pies' },
+  { value: 'facial', label: 'Facial y Bienestar' },
+];
+
+const GALLERY_MAX_PER_CATEGORY = 3;
+const SLIDESHOW_MAX = 15;
+
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [tab, setTab] = useState<AdminTab>('calendar');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -31,10 +48,15 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [siteContent, setSiteContent] = useState<SiteContentEntry[]>([]);
+  const [editingContentKey, setEditingContentKey] = useState<string | null>(null);
+  const [contentDraft, setContentDraft] = useState<string>('');
   const [trafficMode, setTrafficMode] = useState<TrafficMode>('low');
   const [trafficFee, setTrafficFee] = useState(200);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClientInfo, setSelectedClientInfo] = useState<{ name: string; phone: string; email: string }>({ name: '', phone: '', email: '' });
   const [loading, setLoading] = useState(true);
   const [schemaErrors, setSchemaErrors] = useState<string[]>([]);
 
@@ -58,9 +80,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   // New forms state
   const [newStaff, setNewStaff] = useState({ name: '', specialty: '', phone: '', shift_start: '09:00', shift_end: '19:00', service_ids: [] as string[] });
-  const [newService, setNewService] = useState({ name: '', category: 'hair', price_min: 0, price_max: 0, duration_minutes: 60, maintenance_days: 30, description: '' });
+  const [newService, setNewService] = useState({ name: '', category: 'corte', price_min: 0, price_max: 0, duration_minutes: 60, maintenance_days: 30, description: '' });
   const [newCoupon, setNewCoupon] = useState({ code: '', discount_type: 'flat', discount_value: 0, expires_at: '', is_maintenance_coupon: false, requires_full_payment: false, max_uses: '' });
-  const [newPromo, setNewPromo] = useState({ title: '', description: '', promo_type: 'banner', discount_type: 'percent', discount_value: 0, original_price: 0, promo_price: 0 });
+  const [newPromo, setNewPromo] = useState({ title: '', description: '', promo_type: 'descuento', discount_type: 'percent', discount_value: 0, original_price: 0, promo_price: 0, service_ids: [] as string[], start_date: '', end_date: '' });
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatarFor, setUploadingAvatarFor] = useState<string | null>(null);
@@ -154,7 +176,45 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
     const { data: sData } = await supabase.from('slideshow_photos').select('*').order('display_order', { ascending: true });
     if (sData) setSlidePhotos(sData as SlidePhoto[]);
+
+    const { data: cData } = await supabase.from('site_content').select('*').order('section', { ascending: true }).order('key', { ascending: true });
+    if (cData) setSiteContent(cData as SiteContentEntry[]);
   }, []);
+
+  const CONTENT_SECTIONS = [
+    { id: 'inicio', label: 'Inicio' },
+    { id: 'servicios', label: 'Servicios' },
+    { id: 'galeria', label: 'Galería' },
+    { id: 'citas', label: 'Citas' },
+    { id: 'footer', label: 'Footer' },
+  ];
+
+  async function saveContent(key: string) {
+    const entry = siteContent.find(c => c.key === key);
+    const value = contentDraft.slice(0, entry?.max_length ?? 300);
+    await supabase.from('site_content').update({ value, updated_at: new Date().toISOString() }).eq('key', key);
+    setSiteContent(prev => prev.map(c => c.key === key ? { ...c, value } : c));
+    setEditingContentKey(null);
+    setContentDraft('');
+  }
+
+  async function addGalleryUpload(file: File) {
+    const categoryCount = galleryPhotos.filter(p => p.category === uploadCategory && p.is_active).length;
+    if (categoryCount >= GALLERY_MAX_PER_CATEGORY) {
+      alert(`Límite de ${GALLERY_MAX_PER_CATEGORY} fotos por categoría alcanzado. Desactiva una foto existente para agregar una nueva.`);
+      return;
+    }
+    setUploadingGallery(true);
+    const path = `gallery/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from('gallery').upload(path, file, { upsert: true });
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(path);
+      const maxOrder = galleryPhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
+      const { data: newPhoto } = await supabase.from('gallery_photos').insert({ url: urlData.publicUrl, display_order: maxOrder + 1, is_active: true, category: uploadCategory }).select().single();
+      if (newPhoto) setGalleryPhotos((prev) => [...prev, newPhoto]);
+    }
+    setUploadingGallery(false);
+  }
 
   const autoComplete = useCallback(async () => {
     const cutoff = new Date(Date.now() - 90 * 60 * 1000);
@@ -268,20 +328,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     setNewPhotoUrl('');
   }
 
-  async function handleGalleryUpload(file: File) {
-    setUploadingGallery(true);
-    const path = `gallery/${Date.now()}-${file.name}`;
-    const { error } = await supabase.storage.from('gallery').upload(path, file, { upsert: true });
-    if (!error) {
-      const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(path);
-      const maxOrder = galleryPhotos.reduce((m, p) => Math.max(m, p.display_order), 0);
-      const { data: newPhoto } = await supabase.from('gallery_photos').insert({ url: urlData.publicUrl, display_order: maxOrder + 1, is_active: true, category: uploadCategory }).select().single();
-      if (newPhoto) setGalleryPhotos((prev) => [...prev, newPhoto]);
-    }
-    setUploadingGallery(false);
-  }
+  async function handleGalleryUpload(file: File) { await addGalleryUpload(file); }
 
   async function toggleGalleryPhoto(photo: GalleryPhoto) {
+    const activeInCategory = galleryPhotos.filter(p => p.category === photo.category && p.is_active && p.id !== photo.id).length;
+    if (!photo.is_active && activeInCategory >= GALLERY_MAX_PER_CATEGORY) {
+      alert(`Ya hay ${GALLERY_MAX_PER_CATEGORY} fotos activas en esta categoría. Desactiva una primero.`);
+      return;
+    }
     await supabase.from('gallery_photos').update({ is_active: !photo.is_active }).eq('id', photo.id);
     setGalleryPhotos((prev) => prev.map((p) => p.id === photo.id ? { ...p, is_active: !p.is_active } : p));
   }
@@ -306,6 +360,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   }
 
   async function handleSlideUpload(file: File) {
+    if (slidePhotos.filter(s => s.is_active).length >= SLIDESHOW_MAX) {
+      alert(`Límite de ${SLIDESHOW_MAX} fotos en el slideshow. Desactiva una foto para agregar otra.`);
+      return;
+    }
     setUploadingSlide(true);
     const path = `slideshow/${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from('gallery').upload(path, file, { upsert: true });
@@ -482,8 +540,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // ─── Promos CRUD ──────────────────────────────────────────────────────
   async function addPromo() {
     if (!newPromo.title) return;
-    await supabase.from('promotions').insert({ ...newPromo, applicable_days: [1,2,3,4,5,6,7] });
-    setNewPromo({ title: '', description: '', promo_type: 'banner', discount_type: 'percent', discount_value: 0, original_price: 0, promo_price: 0 });
+    await supabase.from('promotions').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('promotions').insert({ ...newPromo, is_active: true, applicable_days: [1,2,3,4,5,6,7] });
+    setNewPromo({ title: '', description: '', promo_type: 'descuento', discount_type: 'percent', discount_value: 0, original_price: 0, promo_price: 0, service_ids: [], start_date: '', end_date: '' });
     loadData();
   }
 
@@ -494,8 +553,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   }
 
   async function togglePromo(p: Promotion) {
-    await supabase.from('promotions').update({ is_active: !p.is_active }).eq('id', p.id);
-    loadData();
+    const newActive = !p.is_active;
+    if (newActive) {
+      await supabase.from('promotions').update({ is_active: false }).neq('id', p.id);
+    }
+    await supabase.from('promotions').update({ is_active: newActive }).eq('id', p.id);
+    setPromotions(prev => prev.map(pr => pr.id === p.id ? { ...pr, is_active: newActive } : newActive ? { ...pr, is_active: false } : pr));
   }
 
   async function deletePromo(id: string) {
@@ -510,6 +573,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   // ─── Client aggregation ───────────────────────────────────────────────
   interface ClientRecord {
+    id: string | null;
     phone: string;
     name: string;
     email: string;
@@ -524,7 +588,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   appointments.forEach((a) => {
     const key = a.client_phone || a.client_name;
     if (!clientMap.has(key)) {
-      clientMap.set(key, { phone: a.client_phone, name: a.client_name, email: a.client_email || '', visits: 0, cancellations: 0, noShows: 0, services: [], lastVisit: a.appointment_date });
+      clientMap.set(key, { id: a.client_id ?? null, phone: a.client_phone, name: a.client_name, email: a.client_email || '', visits: 0, cancellations: 0, noShows: 0, services: [], lastVisit: a.appointment_date });
     }
     const rec = clientMap.get(key)!;
     if (a.appointment_date > rec.lastVisit) rec.lastVisit = a.appointment_date;
@@ -576,6 +640,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { key: 'gallery', icon: <Image size={18} />, label: 'Galería' },
     { key: 'slideshow', icon: <Image size={18} />, label: 'Slideshow' },
     { key: 'beauty', icon: <ShoppingBag size={18} />, label: 'Beauty' },
+    { key: 'content', icon: <Edit2 size={18} />, label: 'Contenido' },
     { key: 'coupons', icon: <Tag size={18} />, label: 'Cupones' },
     { key: 'promos', icon: <TrendingUp size={18} />, label: 'Promos' },
     { key: 'settings', icon: <Settings size={18} />, label: 'Configuración' },
@@ -1171,7 +1236,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <div>
                     <label className={labelCls}>Categoría</label>
                     <select value={newService.category} onChange={(e) => setNewService({ ...newService, category: e.target.value })} className={inputCls}>
-                      {['hair', 'nails', 'spa', 'makeup'].map((c) => <option key={c} value={c}>{c}</option>)}
+                      {SERVICE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                   </div>
                   <div>
@@ -1214,6 +1279,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                               <input value={String(ed.name ?? s.name)} onChange={(e) => setEditServiceData({ ...ed, name: e.target.value })} className={inputCls} />
                             </div>
                             <div>
+                              <label className={labelCls}>Categoría</label>
+                              <select value={String(ed.category ?? s.category)} onChange={(e) => setEditServiceData({ ...ed, category: e.target.value })} className={inputCls}>
+                                {SERVICE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
                               <label className={labelCls}>Precio mín (MXN)</label>
                               <input type="number" value={Number(ed.price_min ?? s.price_min)} onChange={(e) => setEditServiceData({ ...ed, price_min: +e.target.value })} className={inputCls} />
                             </div>
@@ -1237,7 +1308,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             <p className="text-gray-900 font-medium text-sm">{s.name}</p>
                             <p className="text-gray-500 text-xs">${s.price_min}–${s.price_max} MXN • {s.duration_minutes} min • Mantenimiento: {s.maintenance_days} días</p>
                           </div>
-                          <button onClick={() => { setEditingServiceId(s.id); setEditServiceData({ name: s.name, price_min: s.price_min, price_max: s.price_max, duration_minutes: s.duration_minutes }); }} className="text-gray-400 hover:text-[#C9A000] p-1.5 rounded-lg hover:bg-[#FFFBE6] transition-colors"><Edit2 size={15} /></button>
+                          <button onClick={() => { setEditingServiceId(s.id); setEditServiceData({ name: s.name, category: s.category, price_min: s.price_min, price_max: s.price_max, duration_minutes: s.duration_minutes }); }} className="text-gray-400 hover:text-[#C9A000] p-1.5 rounded-lg hover:bg-[#FFFBE6] transition-colors"><Edit2 size={15} /></button>
                           <button onClick={() => toggleServiceActive(s)} className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${s.is_active ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                             {s.is_active ? 'Activo' : 'Inactivo'}
                           </button>
@@ -1252,6 +1323,49 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           )}
 
           {/* ===== COUPONS ===== */}
+          {tab === 'content' && (
+            <div className="space-y-6">
+              <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-4 shadow-sm">
+                <p className="text-gray-900 font-medium text-sm">Editar contenido de la página</p>
+                <p className="text-gray-500 text-xs">Cambia los textos que aparecen en cada sección de la página. Los cambios se reflejan al instante.</p>
+                {CONTENT_SECTIONS.map(sec => (
+                  <div key={sec.id} className="space-y-3">
+                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100 first:border-0 first:pt-0">
+                      <span className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium">{sec.label}</span>
+                    </div>
+                    {siteContent.filter(c => c.section === sec.id).map(entry => (
+                      <div key={entry.key} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-gray-600 font-medium">{entry.label}</label>
+                          <span className="text-[10px] text-gray-400">Máx {entry.max_length} caracteres</span>
+                        </div>
+                        {editingContentKey === entry.key ? (
+                          <div className="flex gap-2">
+                            <textarea
+                              value={contentDraft}
+                              onChange={(e) => setContentDraft(e.target.value.slice(0, entry.max_length))}
+                              maxLength={entry.max_length}
+                              rows={2}
+                              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:border-[#8B7355] focus:outline-none resize-none"
+                              placeholder={entry.value}
+                            />
+                            <button onClick={() => saveContent(entry.key)} className="bg-black hover:bg-neutral-800 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1"><Save size={13} /></button>
+                            <button onClick={() => { setEditingContentKey(null); setContentDraft(''); }} className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs px-3 py-2 rounded-lg flex items-center gap-1"><X size={13} /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group">
+                            <p className="text-sm text-gray-700 flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">{entry.value}</p>
+                            <button onClick={() => { setEditingContentKey(entry.key); setContentDraft(entry.value); }} className="text-gray-400 hover:text-[#8B7355] p-1.5 rounded-lg hover:bg-[#FFF8E7] transition-colors opacity-0 group-hover:opacity-100"><Edit2 size={14} /></button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {tab === 'coupons' && (
             <div className="space-y-6">
               <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-3 shadow-sm">
@@ -1291,6 +1405,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <Plus size={16} /> Crear Cupón
                 </button>
               </div>
+
+              {/* WhatsApp targeting */}
+              <CouponTargeting coupons={coupons} appointments={appointments} services={services} />
 
               <div className="space-y-2">
                 {coupons.map((c) => {
@@ -1352,6 +1469,23 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <div className="space-y-6">
               <div className="bg-[#FBFBF9] border border-gray-100 rounded-xl p-5 space-y-3 shadow-sm">
                 <p className="text-gray-900 font-medium text-sm">Nueva Promoción</p>
+                <p className="text-gray-500 text-xs">Solo puede haber una promo activa a la vez. Si creas una nueva y la activas, las demás se desactivarán automáticamente.</p>
+
+                {/* Paso 1: Tipo de promo */}
+                <div>
+                  <label className={labelCls}>Paso 1: Tipo de promoción</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setNewPromo({ ...newPromo, promo_type: 'descuento' })}
+                      className={`flex-1 py-3 text-sm font-medium rounded-lg border-2 transition-all ${newPromo.promo_type === 'descuento' ? 'border-[#8B7355] bg-[#FFF8E7] text-[#8B7355]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      Descuento en servicios
+                    </button>
+                    <button type="button" onClick={() => setNewPromo({ ...newPromo, promo_type: 'paquete' })}
+                      className={`flex-1 py-3 text-sm font-medium rounded-lg border-2 transition-all ${newPromo.promo_type === 'paquete' ? 'border-[#8B7355] bg-[#FFF8E7] text-[#8B7355]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      Paquete de servicios
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className={labelCls}>Título de la promoción</label>
@@ -1360,12 +1494,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <div className="col-span-2">
                     <label className={labelCls}>Descripción</label>
                     <input value={newPromo.description} onChange={(e) => setNewPromo({ ...newPromo, description: e.target.value })} placeholder="Breve descripción visible al cliente" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Tipo de promo</label>
-                    <select value={newPromo.promo_type} onChange={(e) => setNewPromo({ ...newPromo, promo_type: e.target.value })} className={inputCls}>
-                      {['banner','combo','happy_hour','free_upgrade'].map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
                   </div>
                   <div>
                     <label className={labelCls}>Tipo de descuento</label>
@@ -1380,14 +1508,33 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <p className="text-gray-400 text-[10px] mt-0.5">{newPromo.discount_type === 'flat' ? 'En pesos MXN' : 'Porcentaje 0–100'}</p>
                   </div>
                   <div>
-                    <label className={labelCls}>Precio original combo (MXN)</label>
-                    <input type="number" value={newPromo.original_price} onChange={(e) => setNewPromo({ ...newPromo, original_price: +e.target.value })} placeholder="0" className={inputCls} />
+                    <label className={labelCls}>Fecha de inicio</label>
+                    <input type="date" value={newPromo.start_date} onChange={(e) => setNewPromo({ ...newPromo, start_date: e.target.value })} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Precio promo combo (MXN)</label>
-                    <input type="number" value={newPromo.promo_price} onChange={(e) => setNewPromo({ ...newPromo, promo_price: +e.target.value })} placeholder="0" className={inputCls} />
+                    <label className={labelCls}>Fecha de fin</label>
+                    <input type="date" value={newPromo.end_date} onChange={(e) => setNewPromo({ ...newPromo, end_date: e.target.value })} className={inputCls} />
                   </div>
                 </div>
+
+                {/* Paso 2: Selección de servicios */}
+                <div>
+                  <label className={labelCls}>{newPromo.promo_type === 'paquete' ? 'Servicios que componen el paquete' : 'Servicios con descuento'}</label>
+                  <p className="text-gray-400 text-[10px] mb-2">Selecciona los servicios a los que aplica la promoción</p>
+                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1 bg-white">
+                    {services.filter(s => s.is_active).map(s => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" checked={newPromo.service_ids.includes(s.id)} onChange={(e) => {
+                          if (e.target.checked) setNewPromo({ ...newPromo, service_ids: [...newPromo.service_ids, s.id] });
+                          else setNewPromo({ ...newPromo, service_ids: newPromo.service_ids.filter(id => id !== s.id) });
+                        }} />
+                        <span className="text-gray-700 flex-1">{s.name}</span>
+                        <span className="text-xs text-gray-400">{SERVICE_CATEGORIES.find(c => c.value === s.category)?.label ?? s.category}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 <button onClick={addPromo} className="bg-black hover:bg-neutral-800 text-white text-sm font-semibold px-5 py-2 rounded-none transition-colors flex items-center gap-2">
                   <Plus size={16} /> Crear Promo
                 </button>
@@ -1425,14 +1572,19 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className="text-gray-900 font-medium text-sm">{p.title}</p>
-                              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded uppercase tracking-wider">{p.promo_type}</span>
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded uppercase tracking-wider">{p.promo_type === 'descuento' ? 'Descuento' : 'Paquete'}</span>
+                              {p.is_active && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded">Activa</span>}
                             </div>
                             <p className="text-gray-500 text-xs mt-0.5">{p.description}</p>
-                            {p.original_price > 0 && (
-                              <p className="text-xs mt-0.5">
-                                <span className="line-through text-gray-400">${p.original_price.toLocaleString()}</span>
-                                <span className="text-[#C9A000] font-semibold ml-1">${p.promo_price.toLocaleString()} MXN</span>
-                              </p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(p.service_ids || []).slice(0, 4).map(sid => {
+                                const svc = services.find(s => s.id === sid);
+                                return svc ? <span key={sid} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{svc.name}</span> : null;
+                              })}
+                              {(p.service_ids || []).length > 4 && <span className="text-[10px] text-gray-400">+{p.service_ids.length - 4} más</span>}
+                            </div>
+                            {(p.start_date || p.end_date) && (
+                              <p className="text-xs text-gray-400 mt-1">Vigencia: {p.start_date ? new Date(p.start_date).toLocaleDateString('es-MX') : '??'} — {p.end_date ? new Date(p.end_date).toLocaleDateString('es-MX') : '??'}</p>
                             )}
                           </div>
                           <button onClick={() => { setEditingPromoId(p.id); setEditPromoData({ title: p.title, discount_value: p.discount_value, promo_price: p.promo_price }); }} className="text-gray-400 hover:text-[#C9A000] p-1.5 rounded-lg hover:bg-[#FFFBE6] transition-colors"><Edit2 size={15} /></button>
@@ -1517,11 +1669,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </div>
 
                     {grouped.map(group => {
+                      const activeCount = group.photos.filter(p => p.is_active).length;
+                      const limitReached = activeCount >= GALLERY_MAX_PER_CATEGORY;
                       return (
                         <div key={group.category}>
                           <div className="flex items-center gap-3 mb-3">
                             <div className="h-px flex-1 bg-[#1a1a1a]/10" />
                             <p className="text-xs tracking-[0.2em] uppercase text-[#8B7355] font-medium">{group.label}</p>
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${limitReached ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>{activeCount}/{GALLERY_MAX_PER_CATEGORY}</span>
                             <div className="h-px flex-1 bg-[#1a1a1a]/10" />
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -1866,6 +2021,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             >
                               <Edit2 size={15} />
                             </button>
+                            <button
+                              onClick={() => { setSelectedClientId(c.id ?? null); setSelectedClientInfo({ name: c.name, phone: c.phone, email: c.email }); }}
+                              className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50 shrink-0"
+                              title="Ver info completa"
+                            >
+                              <BarChart3 size={15} />
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1884,6 +2046,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           staff={staff}
           onClose={() => setSelectedAppt(null)}
           onRefresh={loadData}
+        />
+      )}
+
+      {selectedClientId && (
+        <ClientInfoModal
+          clientId={selectedClientId}
+          clientName={selectedClientInfo.name}
+          clientPhone={selectedClientInfo.phone}
+          clientEmail={selectedClientInfo.email}
+          services={services}
+          onClose={() => setSelectedClientId(null)}
         />
       )}
 

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
+import { useSiteContent, CONTENT_DEFAULTS } from './lib/useSiteContent';
 import type { Service } from './types';
 
 import Header, { type SectionTab } from './components/layout/Header';
 import Hero from './components/larue/Hero';
 import Services from './components/larue/Services';
 import Gallery from './components/larue/Gallery';
+import PromoBanner from './components/larue/PromoBanner';
 import Footer from './components/larue/Footer';
 import BookingWizard from './components/larue/BookingWizard';
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -136,6 +138,7 @@ function ReviewsTicker() {
 // ── Booking CTA section ──────────────────────────────────────────────────────
 function CitasSection({ onBookClick }: { onBookClick: () => void }) {
   const { ref, visible } = useScrollReveal();
+  const { getText } = useSiteContent();
   return (
     <section id="citas" className="py-24 lg:py-36 bg-[#1a1a1a]">
       <div className="max-w-7xl mx-auto px-6 lg:px-12 text-center">
@@ -147,12 +150,12 @@ function CitasSection({ onBookClick }: { onBookClick: () => void }) {
             transition: 'opacity 0.9s ease-out, transform 0.9s ease-out',
           }}
         >
-          <p className="text-xs tracking-[0.4em] uppercase text-[#C9A96E] font-medium mb-6">Reserva tu lugar</p>
+          <p className="text-xs tracking-[0.4em] uppercase text-[#C9A96E] font-medium mb-6">{getText('citas_eyebrow', CONTENT_DEFAULTS.citas_eyebrow)}</p>
           <h2 className="font-cormorant text-5xl lg:text-7xl font-light text-[#FAF9F6] leading-none mb-8">
-            Tu transformación<br /><em className="text-[#FAF9F6]/75">comienza aquí</em>
+            {getText('citas_title', CONTENT_DEFAULTS.citas_title)}<br /><em className="text-[#FAF9F6]/75">{getText('citas_title_em', CONTENT_DEFAULTS.citas_title_em)}</em>
           </h2>
           <p className="text-sm text-[#FAF9F6]/55 font-light max-w-md mx-auto leading-relaxed mb-12">
-            Agenda tu cita en línea. Elige el servicio, el horario y el estilista que prefieras — en minutos.
+            {getText('citas_subtitle', CONTENT_DEFAULTS.citas_subtitle)}
           </p>
           <button
             onClick={onBookClick}
@@ -394,6 +397,7 @@ export default function App() {
 
       <Hero onBookClick={() => setShowBooking(true)} />
       <ReviewsTicker />
+      <PromoBanner onBookClick={() => setShowBooking(true)} />
       <Services onBookService={handleBookService} />
       <Gallery />
       <CitasSection onBookClick={() => setShowBooking(true)} />

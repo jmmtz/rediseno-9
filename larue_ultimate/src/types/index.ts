@@ -78,7 +78,7 @@ export interface Promotion {
   id: string;
   title: string;
   description: string;
-  promo_type: 'banner' | 'badge' | 'combo' | 'happy_hour' | 'free_upgrade';
+  promo_type: 'descuento' | 'paquete' | 'banner' | 'badge' | 'combo' | 'happy_hour' | 'free_upgrade';
   discount_type: 'flat' | 'percent';
   discount_value: number;
   original_price: number;
@@ -86,6 +86,8 @@ export interface Promotion {
   applicable_days: number[];
   start_time: string | null;
   end_time: string | null;
+  start_date: string | null;
+  end_date: string | null;
   service_ids: string[];
   is_active: boolean;
   display_badge: boolean;

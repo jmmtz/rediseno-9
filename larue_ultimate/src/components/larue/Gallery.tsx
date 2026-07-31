@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useSiteContent, CONTENT_DEFAULTS } from '../../lib/useSiteContent';
 
 interface GalleryPhoto {
   id: string;
@@ -9,7 +10,7 @@ interface GalleryPhoto {
   category: string;
 }
 
-const MAX_PHOTOS = 4;
+const MAX_PHOTOS = 12;
 
 function useScrollReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -31,13 +32,14 @@ export default function Gallery() {
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const header = useScrollReveal();
+  const { getText } = useSiteContent();
 
   useEffect(() => {
     supabase
       .from('gallery_photos')
       .select('id, url, display_order, category')
       .eq('is_active', true)
-      .order('display_order', { ascending: true })
+      .order('display_order', { ascending: false })
       .then(({ data }) => { if (data) setPhotos((data as GalleryPhoto[]).slice(0, MAX_PHOTOS)); });
   }, []);
 
@@ -56,23 +58,23 @@ export default function Gallery() {
           }}
         >
           <div>
-            <p className="text-xs tracking-[0.35em] uppercase text-[#8B7355] font-medium mb-4">Nuestro Trabajo</p>
+            <p className="text-xs tracking-[0.35em] uppercase text-[#8B7355] font-medium mb-4">{getText('gallery_eyebrow', CONTENT_DEFAULTS.gallery_eyebrow)}</p>
             <h2 className="font-cormorant text-4xl lg:text-6xl font-light text-[#1a1a1a] leading-tight">
-              Cada resultado,<br /><em>una historia</em>
+              {getText('gallery_title', CONTENT_DEFAULTS.gallery_title)}<br /><em>{getText('gallery_title_em', CONTENT_DEFAULTS.gallery_title_em)}</em>
             </h2>
           </div>
           <p className="text-sm text-[#5a5a5a] font-light max-w-xs leading-relaxed">
-            Una curaduría de transformaciones que hablan por sí solas. El estilo es personal; nosotros lo refinamos.
+            {getText('gallery_subtitle', CONTENT_DEFAULTS.gallery_subtitle)}
           </p>
         </div>
 
-        {/* Photo grid — no divisions, just 4 photos */}
+        {/* Photo grid - fotos completas, no recortadas */}
         {photos.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[200px] md:auto-rows-[220px] gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {photos.map((photo, i) => (
               <div
                 key={photo.id}
-                className="overflow-hidden cursor-pointer group relative"
+                className="overflow-hidden cursor-pointer group relative bg-[#F5F2EE]"
                 style={{
                   opacity: header.visible ? 1 : 0,
                   transform: header.visible ? 'translateY(0)' : 'translateY(20px)',
@@ -83,7 +85,7 @@ export default function Gallery() {
                 <img
                   src={photo.url}
                   alt="Nuestro trabajo"
-                  className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-auto max-h-[320px] object-cover transition-transform duration-700 group-hover:scale-105"
                   loading="lazy"
                 />
                 <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/20 transition-all duration-500" />
